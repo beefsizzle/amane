@@ -17,11 +17,7 @@ impl WaylandState {
             return;
         };
 
-        // monitors described before the lock is granted get their screens in locked()
-        if !session_lock.is_locked() {
-            return;
-        }
-
+        // made with the request, since compositors wait for every lock screen before granting the lock
         let already_open = self.windows.iter().any(|window| {
             matches!(window.role, Role::Lock(_)) && window.output.as_ref() == Some(&output)
         });
@@ -69,8 +65,13 @@ impl WaylandState {
             return;
         };
 
-        // the lock screens open once the compositor answers that the session is locked
         self.session_lock = Some(session_lock);
+
+        let outputs: Vec<WlOutput> = self.output.outputs().collect();
+
+        for output in outputs {
+            self.open_lock(output);
+        }
     }
 
     // runs on every wake, since that is when a finished pam check shows up
@@ -109,6 +110,7 @@ impl WaylandState {
 }
 
 impl SessionLockHandler for WaylandState {
+    // the screens opened with the request, this adds any monitor that came since
     fn locked(&mut self, _: &Connection, _: &QueueHandle<Self>, _: SessionLock) {
         let outputs: Vec<WlOutput> = self.output.outputs().collect();
 
