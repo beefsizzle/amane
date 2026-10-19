@@ -3,7 +3,9 @@ use super::Gpu;
 /*
  * a hidden window draws nothing until it shows again, so it gives back
  * what it only needs while shown: its swapchain, which holds several images
- * the size of the window, its spare and kept textures, and its copies of images
+ * the size of the window, its spare and kept textures, and its gpu copies of
+ * images. the decoded pictures stay with the loader, so showing the window
+ * again only uploads them instead of reading every file again
  */
 impl Gpu {
     pub fn release(&mut self) {
@@ -15,9 +17,15 @@ impl Gpu {
         self.spare.clear();
         self.painted.clear();
 
-        // nothing was drawn, so every image counts as no longer shown
+        // the gpu copies go; the loader keeps the pictures, and lets them go
+        // once a window that shows them again stops showing them
+        for (key, _) in self.shown.drain() {
+            self.images.remove(&key);
+
+            self.quads.forget(key);
+        }
+
         self.drawn.clear();
-        self.forget_unshown();
 
         // a swapchain can't be dropped on its own, but a 1x1 one takes the place of the big one
         let mut tiny = self.config.clone();
