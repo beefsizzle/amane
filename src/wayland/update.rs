@@ -101,6 +101,8 @@ impl OpenWindow {
 
         // a frame callback asked for before hiding may never come
         self.frame_requested = false;
+
+        self.gpu.release();
     }
 }
 

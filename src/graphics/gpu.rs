@@ -16,6 +16,7 @@ mod pass;
 mod picture;
 mod pool;
 mod present;
+mod release;
 mod quads;
 mod shade;
 mod shader;
