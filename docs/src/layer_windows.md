@@ -140,6 +140,16 @@ By default, the whole window takes the mouse. To let clicks reach the windows un
 
 The namespace is a name the compositor can match window rules on, like niri's `layer-rule`. It defaults to `"amane"`. It's only read when the window opens, so changing it later does nothing.
 
+## Windows the compositor draws
+
+A window that covers a whole monitor, like a catcher for clicks outside a panel, costs a swapchain and a canvas that size when Amane draws it. If it only ever shows one color, let the compositor draw it instead:
+
+```rust,ignore
+.solid(Color::BLACK)
+```
+
+The compositor stretches a single pixel of that color over the window, so it needs no gpu memory at any size. The children still lay out and take clicks, but aren't drawn. On a compositor without viewports or fractional scaling, the children are drawn as usual.
+
 ## Terms
 
 - **Layer shell:** the Wayland protocol (wlr-layer-shell) that layer windows use. Your compositor must support it.
