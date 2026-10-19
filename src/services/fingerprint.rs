@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, Once, PoisonError};
+use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 use std::thread;
+use std::time::Duration;
 
 use zbus::blocking::Connection;
 use zbus::zvariant::OwnedObjectPath;
@@ -43,6 +44,9 @@ static ENABLED: AtomicBool = AtomicBool::new(false);
 // counts locks, so an answer meant for an earlier lock changes nothing
 static ROUND: AtomicU64 = AtomicU64::new(0);
 
+// a lock is on and wants the reader (between begin and end)
+static ON: AtomicBool = AtomicBool::new(false);
+
 // the reader this lock holds, and who may speak for it
 struct Claim {
     round: u64,
@@ -52,7 +56,20 @@ struct Claim {
 
 static CLAIMED: Mutex<Option<Claim>> = Mutex::new(None);
 
-static LISTENING: Once = Once::new();
+// held while the reader is being claimed or given back, so two of those never interleave
+static WORKING: Mutex<()> = Mutex::new(());
+
+static WATCHING: Once = Once::new();
+
+// how long a busy or broken reader is left before it's tried again
+const RETRY_AFTER: Duration = Duration::from_secs(3);
+
+// how long "not recognised" or "try again" stays up before it goes back to listening
+const MESSAGE_FOR: Duration = Duration::from_secs(2);
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 pub(super) fn enable() {
     ENABLED.store(true, Ordering::Relaxed);
@@ -60,7 +77,7 @@ pub(super) fn enable() {
 
 /// the round of the lock that's on now, for checking an answer still belongs to it
 pub(super) fn current(round: u64) -> bool {
-    ROUND.load(Ordering::SeqCst) == round
+    ON.load(Ordering::SeqCst) && ROUND.load(Ordering::SeqCst) == round
 }
 
 // a lock started: claim the reader and wait for a finger, unless fingerprints are off
@@ -71,22 +88,93 @@ pub(super) fn begin() {
         return;
     }
 
+    ON.store(true, Ordering::SeqCst);
+
+    watch();
+
     // fprintd may have to start first, and claiming the reader is a few calls; none of it may hold up the lock
     thread::spawn(move || {
-        let state = match claim(round) {
-            Ok(true) => Fingerprint::Listening,
-            Ok(false) | Err(_) => Fingerprint::Unavailable,
-        };
+        let _working = lock(&WORKING);
 
-        Lock::fingerprint_changed(round, state);
+        keep_trying(round, 0);
     });
 }
 
 // the lock ended: give the reader back
 pub(super) fn end() {
+    ON.store(false, Ordering::SeqCst);
     ROUND.fetch_add(1, Ordering::SeqCst);
 
-    release();
+    let Some(claim) = lock(&CLAIMED).take() else { return };
+
+    thread::spawn(move || {
+        let _working = lock(&WORKING);
+
+        give_back(&claim);
+    });
+}
+
+/*
+ * claims the reader for the lock in `round` and starts listening. a reader that's busy (a sudo prompt holds it) or
+ * broken is tried again every few seconds while the lock lasts. one that isn't there is tried `missing` more times:
+ * none at the start of a lock (that machine has no reader, or no finger enrolled), a few after a restart, since a USB
+ * reader can take a while to come back from sleep. call it holding WORKING
+ */
+fn keep_trying(round: u64, mut missing: u32) {
+    while current(round) {
+        match claim(round) {
+            Ok(true) => {
+                Lock::fingerprint_changed(round, Fingerprint::Listening);
+
+                return;
+            }
+            Ok(false) if missing == 0 => {
+                Lock::fingerprint_changed(round, Fingerprint::Unavailable);
+
+                return;
+            }
+            Ok(false) => {
+                missing -= 1;
+
+                Lock::fingerprint_changed(round, Fingerprint::Unavailable);
+
+                thread::sleep(RETRY_AFTER);
+            }
+            Err(_) => {
+                Lock::fingerprint_changed(round, Fingerprint::Unavailable);
+
+                thread::sleep(RETRY_AFTER);
+            }
+        }
+    }
+}
+
+// gives the reader back and claims it again for the lock that's on: after a reader error, a wake from sleep (USB
+// readers are often reset), or fprintd starting over
+fn restart() {
+    if !ON.load(Ordering::SeqCst) {
+        return;
+    }
+
+    let round = ROUND.load(Ordering::SeqCst);
+
+    thread::spawn(move || {
+        let _working = lock(&WORKING);
+
+        if let Some(claim) = lock(&CLAIMED).take() {
+            give_back(&claim);
+        }
+
+        // a reader that just came back from sleep can take a moment, half a minute at most
+        thread::sleep(Duration::from_millis(500));
+
+        keep_trying(round, 10);
+    });
+}
+
+fn give_back(claim: &Claim) {
+    let _ = call(&claim.device, DEVICE, "VerifyStop");
+    let _ = call(&claim.device, DEVICE, "Release");
 }
 
 fn system() -> zbus::Result<&'static Connection> {
@@ -102,31 +190,40 @@ fn call_with(path: &str, interface: &str, method: &str, argument: &str) -> zbus:
     system()?.call_method(Some(NAME), path, Some(interface), method, &(argument,))
 }
 
-// false when there's nothing to listen with: no reader, or no finger enrolled for this user
-fn claim(round: u64) -> zbus::Result<bool> {
+// the reader, or None when there's nothing to listen with: no fprintd, no reader, or no finger enrolled for this
+// user. those don't change while the screen is locked, so they aren't tried again
+fn reader() -> Option<(String, String)> {
     // asking for the reader also starts fprintd, which runs on demand
-    let device: OwnedObjectPath = call(MANAGER_PATH, MANAGER, "GetDefaultDevice")?.body().deserialize()?;
+    let device: OwnedObjectPath = call(MANAGER_PATH, MANAGER, "GetDefaultDevice").ok()?.body().deserialize().ok()?;
     let device = device.to_string();
 
-    // "" is the user this program runs as
-    let fingers: Vec<String> = call_with(&device, DEVICE, "ListEnrolledFingers", "")?.body().deserialize()?;
+    // "" is the user this program runs as. fprintd answers an error, not an empty list, when none are enrolled
+    let fingers: Vec<String> = call_with(&device, DEVICE, "ListEnrolledFingers", "").ok()?.body().deserialize().ok()?;
 
     if fingers.is_empty() {
-        return Ok(false);
+        return None;
     }
 
-    let owner: String = system()?
-        .call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"), "GetNameOwner", &(NAME,))?
+    let owner: String = system()
+        .ok()?
+        .call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"), "GetNameOwner", &(NAME,))
+        .ok()?
         .body()
-        .deserialize()?;
+        .deserialize()
+        .ok()?;
 
-    listen();
+    Some((owner, device))
+}
+
+// false when there's nothing to listen with, an error when the reader is busy or failed and is worth another try
+fn claim(round: u64) -> zbus::Result<bool> {
+    let Some((owner, device)) = reader() else { return Ok(false) };
 
     // the claim belongs to this connection, and ends with it
     call_with(&device, DEVICE, "Claim", "")?;
 
     {
-        let mut claimed = CLAIMED.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut claimed = lock(&CLAIMED);
 
         // the lock ended while this was on its way
         if !current(round) {
@@ -140,29 +237,88 @@ fn claim(round: u64) -> zbus::Result<bool> {
         *claimed = Some(Claim { round, owner, device: device.clone() });
     }
 
-    call_with(&device, DEVICE, "VerifyStart", "any")?;
+    if let Err(error) = call_with(&device, DEVICE, "VerifyStart", "any") {
+        if let Some(claim) = lock(&CLAIMED).take() {
+            give_back(&claim);
+        }
+
+        return Err(error);
+    }
 
     Ok(true)
 }
 
-// one thread for the program's whole life, made the first time a reader is claimed
-fn listen() {
-    LISTENING.call_once(|| {
-        // watching before the first verify starts, so its answer can't slip past
-        let signals = Bus::system().signals(DEVICE, "VerifyStatus");
+/*
+ * threads for the program's whole life, made at the first lock: fprintd's answers, waking from sleep, and fprintd
+ * starting over. each watches again if its bus connection ever drops out, rather than going quiet for good
+ */
+fn watch() {
+    WATCHING.call_once(|| {
+        // made here, before the first verify starts, so its answer can't slip past
+        let first = Bus::system().signals(DEVICE, "VerifyStatus");
 
         thread::spawn(move || {
-            for signal in signals {
-                verified(&signal);
+            let mut signals = Some(first);
+
+            loop {
+                for signal in signals.take().unwrap_or_else(|| Bus::system().signals(DEVICE, "VerifyStatus")) {
+                    verified(&signal);
+                }
+
+                thread::sleep(RETRY_AFTER);
+            }
+        });
+
+        thread::spawn(|| {
+            loop {
+                for signal in Bus::system().signals("org.freedesktop.login1.Manager", "PrepareForSleep") {
+                    let going_to_sleep = signal.arguments().first().is_some_and(crate::Value::bool);
+
+                    if !going_to_sleep {
+                        restart();
+                    }
+                }
+
+                thread::sleep(RETRY_AFTER);
+            }
+        });
+
+        thread::spawn(|| {
+            loop {
+                for signal in Bus::system().signals("org.freedesktop.DBus", "NameOwnerChanged") {
+                    owner_changed(&signal);
+                }
+
+                thread::sleep(RETRY_AFTER);
             }
         });
     });
 }
 
+// NameOwnerChanged(name, old owner, new owner), from the bus itself
+fn owner_changed(signal: &Signal) {
+    let arguments = signal.arguments();
+
+    if signal.sender() != "org.freedesktop.DBus" || arguments.first().map_or("", crate::Value::text) != NAME {
+        return;
+    }
+
+    let new_owner = arguments.get(2).map_or("", crate::Value::text);
+
+    let ours = lock(&CLAIMED).as_ref().is_some_and(|claim| claim.owner != new_owner);
+
+    // the fprintd that held our claim is gone, and the claim with it
+    if ours {
+        lock(&CLAIMED).take();
+
+        restart();
+    }
+}
+
 // VerifyStatus(result, done)
 fn verified(signal: &Signal) {
     let (round, device) = {
-        let claimed = CLAIMED.lock().unwrap_or_else(PoisonError::into_inner);
+        let claimed = lock(&CLAIMED);
 
         let Some(claim) = claimed.as_ref() else { return };
 
@@ -189,29 +345,30 @@ fn verified(signal: &Signal) {
                 if current(round) {
                     let _ = call_with(&device, DEVICE, "VerifyStart", "any");
                 }
+
+                settle(round, Fingerprint::NoMatch);
             });
         }
 
         // a poor scan, fprintd keeps listening
         "verify-retry-scan" | "verify-swipe-too-short" | "verify-finger-not-centered" | "verify-remove-and-retry" => {
             Lock::fingerprint_changed(round, Fingerprint::Retry);
+
+            thread::spawn(move || settle(round, Fingerprint::Retry));
         }
 
-        // the reader went away or broke, the password still works
+        // the reader went away or broke: the password still works, and the reader is tried again
         _ => {
             Lock::fingerprint_changed(round, Fingerprint::Unavailable);
 
-            release();
+            restart();
         }
     }
 }
 
-// stops listening and gives the reader back, if one is held
-fn release() {
-    let Some(claim) = CLAIMED.lock().unwrap_or_else(PoisonError::into_inner).take() else { return };
+// a message about the last scan goes back to "listening" after a moment, unless something newer replaced it
+fn settle(round: u64, shown: Fingerprint) {
+    thread::sleep(MESSAGE_FOR);
 
-    thread::spawn(move || {
-        let _ = call(&claim.device, DEVICE, "VerifyStop");
-        let _ = call(&claim.device, DEVICE, "Release");
-    });
+    Lock::fingerprint_settled(round, shown);
 }

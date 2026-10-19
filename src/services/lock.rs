@@ -77,6 +77,19 @@ impl Lock {
         lock.fingerprint = state;
     }
 
+    // a message about the last scan (`shown`) goes back to Listening, if it's still the one on screen
+    pub(super) fn fingerprint_settled(round: u64, shown: Fingerprint) {
+        let mut lock = Self::write();
+
+        if !fingerprint::current(round) || lock.fingerprint != shown {
+            lock.quiet();
+
+            return;
+        }
+
+        lock.fingerprint = Fingerprint::Listening;
+    }
+
     // fprintd matched a finger for the lock in `round`: unlock, and drop a password check that's still running
     pub(super) fn fingerprint_matched(round: u64) {
         let attempt = {
