@@ -66,6 +66,9 @@ impl WaylandState {
         let Ok(session_lock) = lock_state.lock(&self.qh) else {
             eprintln!("amane: the compositor does not support ext-session-lock");
 
+            // reset() already started listening for a finger, for a lock that won't happen
+            Lock::ended();
+
             return;
         };
 
@@ -86,6 +89,14 @@ impl WaylandState {
         };
 
         if !Lock::read().unlocked() {
+            return;
+        }
+
+        /*
+         * the lock screens take input before the compositor has granted the lock, and unlocking before that is a
+         * protocol error that would end the whole shell. `unlocked` stays set, and locked() comes back here
+         */
+        if !session_lock.is_locked() {
             return;
         }
 
@@ -124,6 +135,9 @@ impl SessionLockHandler for WaylandState {
         for output in outputs {
             self.open_lock(output);
         }
+
+        // a password or finger that was accepted while the compositor was still locking
+        self.end_lock_if_unlocked();
     }
 
     // the compositor refused, most likely because another locker already holds the session
