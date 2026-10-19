@@ -87,6 +87,8 @@ impl WaylandState {
 
         self.session_lock = None;
 
+        Lock::ended();
+
         self.close_lock_screens();
 
         /*
@@ -122,6 +124,8 @@ impl SessionLockHandler for WaylandState {
         eprintln!("amane: the compositor refused or ended the session lock");
 
         self.session_lock = None;
+
+        Lock::ended();
 
         self.close_lock_screens();
     }

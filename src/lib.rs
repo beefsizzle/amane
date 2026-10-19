@@ -45,7 +45,7 @@ pub use placement::{Align, Center, End, Justify, Padding, Size, Start};
 pub use process::{lines, output, spawn};
 pub use services::{
     AccessPoint, Action, Apps, Audio, Battery, Bluetooth, BluetoothDevice, Brightness, Cpu,
-    DesktopApp, Link, Lock, Media, MediaPlayer, Memory, Network, Notification, Notifications,
+    DesktopApp, Fingerprint, Link, Lock, Media, MediaPlayer, Memory, Network, Notification, Notifications,
     Palette, Pam, PamConfig, PamError, PamMessage, PamMessageKind, PamResult, Service, Urgency,
     Workspace, Workspaces,
 };

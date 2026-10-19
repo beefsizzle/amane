@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use super::fingerprint::{self, Fingerprint};
 use super::pam::{self, Session};
 use crate::changes;
 use crate::{PamConfig, PamError, PamResult, Service};
@@ -19,9 +20,12 @@ pub struct Lock {
     // the last authentication attempt was rejected or failed
     failed: bool,
 
-    // the backend ends the lock once this is set, only pam sets it
+    // the backend ends the lock once this is set, only pam and fprintd set it
     unlocked: bool,
     attempt: Option<Arc<Session>>,
+
+    // what the fingerprint reader is doing, Off unless use_fingerprint was called
+    fingerprint: Fingerprint,
 }
 
 // changes through authentication attempts rather than polling
@@ -45,6 +49,66 @@ impl Lock {
 
     pub(crate) fn unlocked(&self) -> bool {
         self.unlocked
+    }
+
+    pub fn fingerprint(&self) -> Fingerprint {
+        self.fingerprint
+    }
+
+    /*
+     * from now on every lock also unlocks with an enrolled fingerprint, through fprintd, while the password keeps
+     * working next to it. call it once, before the first lock. machines without a reader or an enrolled finger
+     * only ever see Fingerprint::Unavailable
+     */
+    pub fn use_fingerprint() {
+        fingerprint::enable();
+    }
+
+    // the reader's state for the lock in `round`, dropped if that lock is over
+    pub(super) fn fingerprint_changed(round: u64, state: Fingerprint) {
+        let mut lock = Self::write();
+
+        if !fingerprint::current(round) || lock.fingerprint == state {
+            lock.quiet();
+
+            return;
+        }
+
+        lock.fingerprint = state;
+    }
+
+    // fprintd matched a finger for the lock in `round`: unlock, and drop a password check that's still running
+    pub(super) fn fingerprint_matched(round: u64) {
+        let attempt = {
+            let mut lock = Self::write();
+
+            if !fingerprint::current(round) {
+                lock.quiet();
+
+                return;
+            }
+
+            lock.unlocked = true;
+            lock.checking = false;
+            lock.failed = false;
+
+            let attempt = lock.attempt.take();
+
+            if let Some(attempt) = &attempt {
+                attempt.abort();
+            }
+
+            attempt
+        };
+
+        if let Some(attempt) = attempt {
+            pam::abort_session(&attempt);
+        }
+    }
+
+    // the backend ended the lock: the reader is given back
+    pub(crate) fn ended() {
+        fingerprint::end();
     }
 
     /*
@@ -75,6 +139,9 @@ impl Lock {
         if let Some(attempt) = attempt {
             pam::abort_session(&attempt);
         }
+
+        // and listens for a finger, when that's turned on
+        fingerprint::begin();
     }
 
     /*
