@@ -84,6 +84,11 @@ impl WaylandState {
             return;
         }
 
+        // unlocking before the lock is granted is a protocol error, so locked() comes back here
+        if !session_lock.is_locked() {
+            return;
+        }
+
         session_lock.unlock();
 
         self.session_lock = None;
@@ -117,6 +122,9 @@ impl SessionLockHandler for WaylandState {
         for output in outputs {
             self.open_lock(output);
         }
+
+        // an unlock that came while the compositor was still locking
+        self.end_lock_if_unlocked();
     }
 
     // the compositor refused, most likely because another locker already holds the session
