@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::input::KeyHandler;
-use crate::{Full, Key, Widget};
+use crate::{Color, Full, Key, Widget};
 
 pub struct LayerWindow {
     pub(crate) width: WindowSize,
@@ -21,6 +21,9 @@ pub struct LayerWindow {
 
     // none means the whole window takes the pointer
     pub(crate) input_region: Option<Vec<InputArea>>,
+
+    // none means the window draws its children, see solid()
+    pub(crate) solid: Option<Color>,
 
     pub(crate) root: Option<Box<dyn Widget>>,
 
@@ -186,6 +189,18 @@ impl LayerWindow {
         self.input_region(Vec::new())
     }
 
+    /*
+     * the window shows only this color, which the compositor stretches from a single
+     * pixel, so it needs no gpu memory at any size; the children still lay out and
+     * take input but are never drawn, like a fullscreen catcher for outside clicks.
+     * a compositor without viewports or fractional scales draws the children instead
+     */
+    pub fn solid(mut self, color: Color) -> Self {
+        self.solid = Some(color);
+
+        self
+    }
+
     // keys only arrive while the window has keyboard focus, see Keyboard
     pub fn on_key(mut self, handler: impl Fn(Key) + 'static) -> Self {
         self.on_key = Some(Rc::new(handler));
@@ -227,6 +242,8 @@ impl LayerWindowNeedsHeight {
             visible: true,
 
             input_region: None,
+
+            solid: None,
 
             root: None,
 

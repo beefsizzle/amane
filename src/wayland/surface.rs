@@ -6,20 +6,24 @@ use smithay_client_toolkit::{
     session_lock::SessionLockSurface,
     shell::{WaylandSurface, wlr_layer::LayerSurface, xdg::window::Window as XdgWindow},
 };
+use smithay_client_toolkit::reexports::protocols::wp::single_pixel_buffer::v1::client::wp_single_pixel_buffer_manager_v1::WpSinglePixelBufferManagerV1;
 use wayland_client::{
     QueueHandle,
-    protocol::{wl_compositor::WlCompositor, wl_output::WlOutput, wl_surface::WlSurface},
+    protocol::{
+        wl_compositor::WlCompositor, wl_output::WlOutput, wl_shm::WlShm, wl_surface::WlSurface,
+    },
 };
 
 use crate::graphics::Gpu;
 use crate::input::{KeyHandler, Pointer};
 use crate::scale::ScaleFactor;
-use crate::{InputArea, LayerWindow, Monitor, Widget, Window};
+use crate::{Color, InputArea, LayerWindow, Monitor, Widget, Window};
 
 use super::{
     WaylandState,
     layer::{self, Settings},
     scale::Fractional,
+    solid::SolidBuffer,
 };
 
 // one surface on screen, with everything it needs to draw and take input
@@ -57,10 +61,17 @@ pub struct OpenWindow {
     // none at whole scales; dropped before the role, since it belongs to its surface
     pub fractional: Option<Fractional>,
 
+    // the pixel a solid window last showed, see LayerWindow::solid
+    pub solid: Option<SolidBuffer>,
+
     pub role: Role,
 
     // kept to make input regions, which come from the compositor
     pub compositor: WlCompositor,
+
+    // kept to make the pixel solid windows show, from the compositor's own kind when it has them
+    pub single_pixel: Option<WpSinglePixelBufferManagerV1>,
+    pub shm: WlShm,
 
     pub qh: QueueHandle<WaylandState>,
 }
@@ -175,6 +186,14 @@ impl Content {
         match self {
             Content::Layer(window) => window.namespace,
             Content::Normal(_) => "normal",
+        }
+    }
+
+    // the one color the window shows instead of drawing its widgets
+    pub fn solid(&self) -> Option<Color> {
+        match self {
+            Content::Layer(window) => window.solid,
+            Content::Normal(_) => None,
         }
     }
 

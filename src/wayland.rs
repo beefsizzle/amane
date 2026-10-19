@@ -10,6 +10,7 @@ mod redraw;
 mod scale;
 mod seat;
 mod socket;
+mod solid;
 mod surface;
 mod update;
 mod wake;
@@ -17,6 +18,7 @@ mod windows;
 
 use smithay_client_toolkit::reexports::protocols::wp::{
     fractional_scale::v1::client::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1,
+    single_pixel_buffer::v1::client::wp_single_pixel_buffer_manager_v1::WpSinglePixelBufferManagerV1,
     viewporter::client::wp_viewporter::WpViewporter,
 };
 use smithay_client_toolkit::{
@@ -70,6 +72,9 @@ struct WaylandState {
     // both are needed for fractional scales like 1.25, none when the compositor lacks one
     fractional_scale: Option<WpFractionalScaleManagerV1>,
     viewporter: Option<WpViewporter>,
+
+    // what solid windows show their one color with, they use shared memory when the compositor lacks it
+    single_pixel: Option<WpSinglePixelBufferManagerV1>,
 
     /*
      * the lock screen's view, what asks the compositor for a lock (kept, so
@@ -130,6 +135,7 @@ impl WaylandApp {
 
         let fractional_scale = globals.bind(&qh, 1..=1, ()).ok();
         let viewporter = globals.bind(&qh, 1..=1, ()).ok();
+        let single_pixel = globals.bind(&qh, 1..=1, ()).ok();
 
         let data_device_manager = DataDeviceManagerState::bind(&globals, &qh).ok();
 
@@ -154,6 +160,7 @@ impl WaylandApp {
 
             fractional_scale,
             viewporter,
+            single_pixel,
 
             lock_view,
             lock_state: None,
