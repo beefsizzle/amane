@@ -113,6 +113,33 @@ Read the `Pam` Service in your lock view to show information, error messages and
 
 `Lock::abort()` cancels the lock's attempt and keeps the session locked. If a native module is still working, the PAM worker remains active until it returns; wait for `Pam::read().active()` to become false before retrying.
 
+## Fingerprint
+
+Call `Lock::use_fingerprint()` once at startup, and every lock also unlocks with a fingerprint enrolled for you in fprintd (`fprintd-enroll`). The reader listens for the whole lock while the password field keeps working, so nobody has to wait for one to time out before using the other.
+
+```rust,ignore
+fn main() {
+    Lock::use_fingerprint();
+
+    App::new().lock(view).run();
+}
+```
+
+`Lock::read().fingerprint()` tells your view what the reader is doing:
+
+| `Fingerprint` | Meaning |
+|---|---|
+| `Off` | not turned on, or not locked |
+| `Unavailable` | no reader, no enrolled finger, or the reader is in use or failed. The password still works |
+| `Listening` | waiting for a finger |
+| `Retry` | the scan was poor, waiting for another |
+| `NoMatch` | a finger that isn't enrolled, waiting for another |
+| `TooManyTries` | 5 fingers this lock weren't enrolled, so the reader stops listening until the next lock. The password still works |
+
+Each lock allows 5 fingers that fprintd compares and rejects. After the fifth, the reader is given back and stays off until the screen locks again, even across sleep or fprintd restarting. Poor scans (`Retry`) and claiming the reader again after sleep don't count. A password unlock ends the lock, so the next lock starts with 5 tries again; a wrong password doesn't reset them. The cap is there because each scan of a stranger's finger is another chance for the matcher to accept it by mistake, and some readers' matchers are only good for a few chances.
+
+This talks to fprintd on the system bus instead of going through `pam_fprintd`, which holds the PAM conversation until a finger comes and makes the password wait. Only fprintd decides a finger matches: a match counts only when it comes from fprintd's own bus connection and from the reader this lock claimed, since any program can send a signal with that name.
+
 ## Lock reference
 
 | Function | Meaning |
@@ -123,6 +150,8 @@ Read the `Pam` Service in your lock view to show information, error messages and
 | `Lock::unlock(password)` | checks a password, and unlocks if it's right |
 | `Lock::authenticate(config)` | starts interactive authentication, and unlocks on success |
 | `Lock::abort()` | cancels authentication and keeps the session locked |
+| `Lock::use_fingerprint()` | from now on, locks also unlock with an enrolled fingerprint |
+| `Lock::read().fingerprint()` | what the fingerprint reader is doing |
 
 Only one PAM attempt runs at a time. Calling `unlock` while a check is running does nothing; `authenticate` returns `PamError::Busy`. The password convenience function supplies the same password to every prompt. Use interactive authentication when a policy asks for different responses. Each new lock starts clean, without the last lock's `failed` state.
 

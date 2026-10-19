@@ -62,6 +62,9 @@ impl WaylandState {
         let Ok(session_lock) = lock_state.lock(&self.qh) else {
             eprintln!("amane: the compositor does not support ext-session-lock");
 
+            // reset() already claimed the reader for this lock
+            Lock::ended();
+
             return;
         };
 
@@ -92,6 +95,8 @@ impl WaylandState {
         session_lock.unlock();
 
         self.session_lock = None;
+
+        Lock::ended();
 
         self.close_lock_screens();
 
@@ -132,6 +137,8 @@ impl SessionLockHandler for WaylandState {
         eprintln!("amane: the compositor refused or ended the session lock");
 
         self.session_lock = None;
+
+        Lock::ended();
 
         self.close_lock_screens();
     }
