@@ -93,9 +93,14 @@ impl WaylandState {
 
             fractional,
 
+            solid: None,
+
             role,
 
             compositor: self.compositor.wl_compositor().clone(),
+
+            single_pixel: self.single_pixel.clone(),
+            shm: self.shm.wl_shm().clone(),
 
             qh: self.qh.clone(),
         };

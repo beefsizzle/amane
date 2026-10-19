@@ -44,6 +44,7 @@ use amane::*;
 | `.input_region(vec![InputArea { x, y, width, height }])` | only these areas take the mouse |
 | `.click_through()` | no part takes the mouse |
 | `.namespace("bar")` | name for compositor rules, read once when the window opens |
+| `.solid(color)` | the compositor shows only this color, with no gpu memory; children take input but aren't drawn |
 | `.child(widget)` | the window's content |
 
 ## Window

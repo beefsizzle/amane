@@ -34,6 +34,8 @@ impl OpenWindow {
             return;
         }
 
+        let solid = content.solid();
+
         let (root, on_key) = content.into_parts();
 
         // a window without a child has nothing to show, which is a mistake but not a crash
@@ -70,7 +72,11 @@ impl OpenWindow {
 
         let drawn = Instant::now();
 
-        let presented = self.present(frame.renderer);
+        // a solid window commits its one pixel, the frame only gave it what takes input
+        let presented = match solid {
+            Some(color) if self.present_solid(color) => true,
+            _ => self.present(frame.renderer),
+        };
 
         let timing = Timing {
             started,
