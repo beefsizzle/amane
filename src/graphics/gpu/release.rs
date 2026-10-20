@@ -8,7 +8,11 @@ use super::Gpu;
  * again only uploads them instead of reading every file again
  */
 impl Gpu {
-    pub fn release(&mut self) {
+    /*
+     * `forget` also lets the loader drop the decoded pictures this window was the last to show: right for a window
+     * that now shows its picture through the compositor, which has its own copy, but not for one that only hides
+     */
+    pub fn release(&mut self, forget: bool) {
         // nothing was drawn since the last release, or ever, so there is nothing to give back
         if self.config.width == 0 {
             return;
@@ -17,15 +21,21 @@ impl Gpu {
         self.spare.clear();
         self.painted.clear();
 
-        // the gpu copies go; the loader keeps the pictures, and lets them go
-        // once a window that shows them again stops showing them
-        for (key, _) in self.shown.drain() {
-            self.images.remove(&key);
+        if forget {
+            // nothing is drawn any more, so every picture counts as no longer shown
+            self.drawn.clear();
+            self.forget_unshown();
+        } else {
+            // the gpu copies go; the loader keeps the pictures, and lets them go
+            // once a window that shows them again stops showing them
+            for (key, _) in self.shown.drain() {
+                self.images.remove(&key);
 
-            self.quads.forget(key);
+                self.quads.forget(key);
+            }
+
+            self.drawn.clear();
         }
-
-        self.drawn.clear();
 
         // a swapchain can't be dropped on its own, but a 1x1 one takes the place of the big one
         let mut tiny = self.config.clone();

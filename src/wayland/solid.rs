@@ -66,7 +66,7 @@ impl OpenWindow {
         // the old pixel goes once the new one is committed, so the window never shows nothing
         drop(old);
 
-        self.gpu.release();
+        self.gpu.release(true);
 
         true
     }

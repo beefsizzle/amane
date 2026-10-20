@@ -91,6 +91,8 @@ impl WaylandState {
 
             solid: None,
 
+            picture: None,
+
             role,
 
             compositor: self.compositor.wl_compositor().clone(),

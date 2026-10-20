@@ -23,6 +23,7 @@ use super::{
     WaylandState,
     layer::{self, Settings},
     scale::Fractional,
+    picture::PictureBuffer,
     solid::SolidBuffer,
 };
 
@@ -63,6 +64,9 @@ pub struct OpenWindow {
 
     // the pixel a solid window last showed, see LayerWindow::solid
     pub solid: Option<SolidBuffer>,
+
+    // the picture a picture window last showed, see LayerWindow::picture
+    pub picture: Option<std::rc::Rc<PictureBuffer>>,
 
     pub role: Role,
 
@@ -193,6 +197,14 @@ impl Content {
     pub fn solid(&self) -> Option<Color> {
         match self {
             Content::Layer(window) => window.solid,
+            Content::Normal(_) => None,
+        }
+    }
+
+    // the picture the window shows instead of drawing its widgets
+    pub fn picture(&self) -> Option<std::path::PathBuf> {
+        match self {
+            Content::Layer(window) => window.picture.clone(),
             Content::Normal(_) => None,
         }
     }
