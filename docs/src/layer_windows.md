@@ -150,6 +150,14 @@ A window that covers a whole monitor, like a catcher for clicks outside a panel,
 
 The compositor stretches a single pixel of that color over the window, so it needs no gpu memory at any size. The children still lay out and take clicks, but aren't drawn. On a compositor without viewports or fractional scaling, the children are drawn as usual.
 
+A picture works the same way, which suits a wallpaper:
+
+```rust,ignore
+.picture("/home/me/wallpaper.jpg")
+```
+
+The window shows a PNG, JPEG or SVG covering it, like `Image::cover`. It's decoded once into shared memory, and every window showing the same file uses that one buffer, so a wallpaper on two monitors is in memory once. The children are drawn while the file is still decoding, and on a compositor without viewports.
+
 ## Terms
 
 - **Layer shell:** the Wayland protocol (wlr-layer-shell) that layer windows use. Your compositor must support it.

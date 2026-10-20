@@ -11,7 +11,7 @@ impl Gpu {
             self.config.width = width;
             self.config.height = height;
 
-            self.surface.configure(&self.device, &self.config);
+            self.configure_surface();
 
             // spares and kept results of the old size would never fit again
             self.spare.clear();
@@ -59,16 +59,16 @@ impl Gpu {
     }
 
     fn next_frame(&mut self) -> Option<SurfaceTexture> {
-        match self.surface.get_current_texture() {
+        match self.surface().get_current_texture() {
             CurrentSurfaceTexture::Success(frame) => Some(frame),
 
             CurrentSurfaceTexture::Suboptimal(frame) => Some(frame),
 
             // the swapchain no longer fits the surface, a fresh one takes its place
             CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
-                self.surface.configure(&self.device, &self.config);
+                self.configure_surface();
 
-                match self.surface.get_current_texture() {
+                match self.surface().get_current_texture() {
                     CurrentSurfaceTexture::Success(frame) => Some(frame),
 
                     _ => None,

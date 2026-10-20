@@ -65,7 +65,7 @@ Next, `frame::build` lays the tree out in the window and asks every widget to dr
 
 `App::scale_factor` is separate from the compositor's output scale. The backend keeps surface dimensions in compositor units, scales the window requests, and divides configured dimensions by the app factor for views and layout. Drawing combines both factors. Input targets undo only the app factor, because Wayland pointer positions already account for output scaling. `window_size()` and `Monitor` dimensions therefore use the same units as widgets.
 
-Last, the `Gpu` turns the commands into pixels and presents them, which attaches the buffer to the surface and commits it. A window made with `LayerWindow::solid` skips the `Gpu`: its surface gets a single pixel buffer that the viewport stretches (`src/wayland/solid.rs`), and its gpu memory is let go.
+Last, the `Gpu` turns the commands into pixels and presents them, which attaches the buffer to the surface and commits it. A window made with `LayerWindow::solid` or `LayerWindow::picture` skips the `Gpu`: its surface gets a single pixel buffer (`src/wayland/solid.rs`) or the picture's shared-memory buffer (`src/wayland/picture.rs`), cropped and scaled by the viewport, and its gpu memory is let go.
 
 If anything in the frame was still animating, the window asks the compositor for a frame callback in that same commit, so the next frame arrives on the next refresh.
 
@@ -185,6 +185,7 @@ src/
 │   ├── output.rs      monitors coming and going
 │   ├── normal.rs      xdg windows
 │   ├── solid.rs       solid windows: one pixel the compositor stretches
+│   ├── picture.rs     picture windows: one shared-memory buffer per file
 │   ├── lock.rs        the session lock surfaces
 │   ├── scale.rs       fractional scale
 │   ├── socket.rs      the IPC socket source

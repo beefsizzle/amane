@@ -45,13 +45,19 @@ impl OpenWindow {
             }
         };
 
-        let Some(solid) = &self.solid else {
-            return false;
-        };
-
         fractional
             .viewport
             .set_destination(self.width as i32, self.height as i32);
+
+        // the gpu lets go of the window first, see Gpu::hand_over
+        self.gpu.hand_over();
+
+        // a picture's crop would reach outside the one pixel
+        let picture = self.leave_picture();
+
+        let Some(solid) = &self.solid else {
+            return false;
+        };
 
         let surface = self.role.wl_surface();
 
@@ -59,10 +65,9 @@ impl OpenWindow {
         surface.damage_buffer(0, 0, 1, 1);
         surface.commit();
 
-        // the old pixel goes once the new one is committed, so the window never shows nothing
+        // the old pixel or picture goes once the new one is committed
         drop(old);
-
-        self.gpu.release();
+        drop(picture);
 
         true
     }

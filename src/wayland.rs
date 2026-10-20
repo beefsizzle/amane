@@ -6,6 +6,7 @@ mod layer_surface;
 mod lock;
 mod normal;
 mod output;
+mod picture;
 mod pointer;
 mod redraw;
 mod scale;
@@ -15,6 +16,9 @@ mod solid;
 mod surface;
 mod update;
 mod wake;
+
+// a picture window starts decoding its file from the view, see LayerWindow::picture
+pub(crate) use picture::want as want_picture;
 mod windows;
 
 use smithay_client_toolkit::reexports::protocols::wp::{

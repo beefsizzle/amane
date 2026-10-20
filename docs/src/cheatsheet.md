@@ -45,6 +45,7 @@ use amane::*;
 | `.click_through()` | no part takes the mouse |
 | `.namespace("bar")` | name for compositor rules, read once when the window opens |
 | `.solid(color)` | the compositor shows only this color, with no gpu memory; children take input but aren't drawn |
+| `.picture(path)` | the compositor shows only this PNG, JPEG or SVG, covering the window, with no gpu memory |
 | `.child(widget)` | the window's content |
 
 ## Window

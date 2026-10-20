@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::input::KeyHandler;
@@ -24,6 +25,9 @@ pub struct LayerWindow {
 
     // none means the window draws its children, see solid()
     pub(crate) solid: Option<Color>,
+
+    // none means the window draws its children, see picture()
+    pub(crate) picture: Option<PathBuf>,
 
     pub(crate) root: Option<Box<dyn Widget>>,
 
@@ -199,6 +203,20 @@ impl LayerWindow {
         self
     }
 
+    /*
+     * shows only this png, jpeg or svg, covering the window, drawn by the compositor with no gpu memory. the
+     * children take input, and are drawn while the file decodes or without viewports
+     */
+    pub fn picture(mut self, path: impl Into<PathBuf>) -> Self {
+        let path = path.into();
+
+        crate::wayland::want_picture(&path);
+
+        self.picture = Some(path);
+
+        self
+    }
+
     // keys only arrive while the window has keyboard focus, see Keyboard
     pub fn on_key(mut self, handler: impl Fn(Key) + 'static) -> Self {
         self.on_key = Some(Rc::new(handler));
@@ -242,6 +260,8 @@ impl LayerWindowNeedsHeight {
             input_region: None,
 
             solid: None,
+
+            picture: None,
 
             root: None,
 
