@@ -64,8 +64,13 @@ pub struct Gpu {
     device: Device,
     queue: Queue,
 
-    surface: Surface<'static>,
+    // none while the compositor draws the window by itself, see `hand_over`
+    surface: Option<Surface<'static>>,
     config: SurfaceConfiguration,
+
+    // to make the gpu surface again after `hand_over`
+    display: *mut c_void,
+    window: *mut c_void,
 
     // one renderer for every window, see shared.rs
     vello: Rc<RefCell<vello::Renderer>>,
@@ -110,6 +115,8 @@ impl Gpu {
     pub fn new(display: *mut c_void, surface: *mut c_void) -> Self {
         let instance = shared::instance(display);
 
+        let surface_pointer = surface;
+
         let surface = target::create(&instance, display, surface);
 
         let Shared {
@@ -136,8 +143,11 @@ impl Gpu {
             device,
             queue,
 
-            surface,
+            surface: Some(surface),
             config,
+
+            display,
+            window: surface_pointer,
 
             vello,
 

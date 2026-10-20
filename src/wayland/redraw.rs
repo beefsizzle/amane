@@ -35,6 +35,7 @@ impl OpenWindow {
         }
 
         let solid = content.solid();
+        let picture = content.picture();
 
         let (root, on_key) = content.into_parts();
 
@@ -72,10 +73,20 @@ impl OpenWindow {
 
         let drawn = Instant::now();
 
-        // a solid window commits its one pixel, the frame only gave it what takes input
-        let presented = match solid {
-            Some(color) if self.present_solid(color) => true,
-            _ => self.present(frame.renderer),
+        // the compositor draws a solid or picture window, the frame only gave it what takes input
+        let presented = match (solid, picture) {
+            (Some(color), _) if self.present_solid(color) => true,
+            (_, Some(path)) if self.present_picture(&path) => true,
+            _ => {
+                // a picture shown until now goes once this frame replaced it
+                let old = self.leave_picture();
+
+                let presented = self.present(frame.renderer);
+
+                drop(old);
+
+                presented
+            }
         };
 
         let timing = Timing {

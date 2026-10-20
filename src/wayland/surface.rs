@@ -23,6 +23,7 @@ use super::layer_surface::LayerSurface;
 use super::{
     WaylandState,
     layer::{self, Settings},
+    picture::PictureBuffer,
     scale::Fractional,
     solid::SolidBuffer,
 };
@@ -70,6 +71,9 @@ pub struct OpenWindow {
 
     // the pixel a solid window last showed, see LayerWindow::solid
     pub solid: Option<SolidBuffer>,
+
+    // the picture a picture window last showed, see LayerWindow::picture
+    pub picture: Option<std::rc::Rc<PictureBuffer>>,
 
     pub role: Role,
 
@@ -199,6 +203,13 @@ impl Content {
     pub fn solid(&self) -> Option<Color> {
         match self {
             Content::Layer(window) => window.solid,
+            Content::Normal(_) => None,
+        }
+    }
+
+    pub fn picture(&self) -> Option<std::path::PathBuf> {
+        match self {
+            Content::Layer(window) => window.picture.clone(),
             Content::Normal(_) => None,
         }
     }
