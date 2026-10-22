@@ -25,15 +25,7 @@ pub fn read_icon_folders() -> Vec<Vec<PathBuf>> {
     }
 
     for theme in &themes {
-        for root in &roots {
-            let theme_icon_folders = read_theme_icon_folders(&root.join(theme));
-
-            if theme_icon_folders.is_empty() {
-                continue;
-            }
-
-            icon_folders.push(theme_icon_folders)
-        }
+        icon_folders.extend(theme_icon_folders(theme, &roots));
     }
 
     // loose icons that belong to no theme
@@ -204,16 +196,34 @@ fn parse_icon_folder_names(index_theme: &str) -> Vec<&str> {
     icon_folder_names
 }
 
-fn read_theme_icon_folders(theme: &Path) -> Vec<PathBuf> {
-    let index_theme = read_index_theme(theme);
+/*
+ * a theme's folders under each root that has it, listed by the first index.theme found: icons programs install for
+ * themselves, like wine's, come without one
+ */
+fn theme_icon_folders(theme: &str, roots: &[PathBuf]) -> Vec<Vec<PathBuf>> {
+    let index_theme = roots
+        .iter()
+        .map(|root| read_index_theme(&root.join(theme)))
+        .find(|index_theme| !index_theme.is_empty())
+        .unwrap_or_default();
 
-    let mut theme_icon_folders = Vec::new();
+    let icon_folder_names = parse_icon_folder_names(&index_theme);
 
-    for icon_folder_name in parse_icon_folder_names(&index_theme) {
-        theme_icon_folders.push(theme.join(icon_folder_name));
+    if icon_folder_names.is_empty() {
+        return Vec::new();
     }
 
-    theme_icon_folders
+    roots
+        .iter()
+        .map(|root| root.join(theme))
+        .filter(|theme_dir| theme_dir.is_dir())
+        .map(|theme_dir| {
+            icon_folder_names
+                .iter()
+                .map(|name| theme_dir.join(name))
+                .collect()
+        })
+        .collect()
 }
 
 fn look_up_icon_file_in_folder(icon_name: &str, icon_folder: &Path) -> Option<PathBuf> {
@@ -261,4 +271,42 @@ pub fn look_up_icon_file(icon_name: &str, icon_folders: &[Vec<PathBuf>]) -> Opti
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_theme_folder_without_index_theme_uses_the_first_ones() {
+        let base = env::temp_dir().join(format!("amane-icons-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+
+        let (system, local) = (base.join("system"), base.join("local"));
+
+        // the system hicolor lists its folders, the user's own has only icons
+        fs::create_dir_all(system.join("hicolor/48x48/apps")).unwrap();
+        fs::write(
+            system.join("hicolor/index.theme"),
+            "[Icon Theme]\nDirectories=48x48/apps,\n",
+        )
+        .unwrap();
+
+        fs::create_dir_all(local.join("hicolor/48x48/apps")).unwrap();
+        fs::write(local.join("hicolor/48x48/apps/steam_icon_1.png"), "").unwrap();
+        fs::write(local.join("hicolor/48x48/apps/ECB9_unins000.0.png"), "").unwrap();
+
+        let folders = theme_icon_folders("hicolor", &[local.clone(), system]);
+
+        assert_eq!(folders.len(), 2);
+
+        for name in ["steam_icon_1", "ECB9_unins000.0"] {
+            assert_eq!(
+                look_up_icon_file(name, &folders),
+                Some(local.join(format!("hicolor/48x48/apps/{name}.png")))
+            );
+        }
+
+        let _ = fs::remove_dir_all(&base);
+    }
 }
