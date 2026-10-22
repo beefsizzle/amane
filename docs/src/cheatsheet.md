@@ -203,6 +203,7 @@ use amane::*;
 | `.thumbnail(w, h)` | keeps a small copy |
 | `.blurred(radius)` | blurs it once, when loaded |
 | `Image::loaded(path)` | `true` once it's ready to draw |
+| `Image::forget(path)` | lets go of a decoded picture no window draws |
 
 ## Animation
 

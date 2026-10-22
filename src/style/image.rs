@@ -83,6 +83,14 @@ impl Image {
 
         image::load(path, None, 0).is_some()
     }
+
+    /*
+     * lets go of the decoded file, or its decode, when no window draws it: for
+     * a picture asked about with `loaded` that won't be shown after all
+     */
+    pub fn forget(path: impl AsRef<Path>) {
+        image::unused(path.as_ref());
+    }
 }
 
 impl Fit {
