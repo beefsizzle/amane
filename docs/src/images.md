@@ -64,7 +64,8 @@ let cover = if Image::loaded(art) {
 };
 ```
 
-`Image::loaded` also starts the decode if nothing asked for it yet.
+`Image::loaded` also starts the decode if nothing asked for it yet. The decoded picture is kept until a window has
+drawn it and stopped; for one that won't be shown after all, `Image::forget(path)` lets it go.
 
 ## Thumbnails
 

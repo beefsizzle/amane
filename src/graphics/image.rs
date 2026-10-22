@@ -106,10 +106,16 @@ fn decode(key: Key) {
     // blurred after shrinking, where there are far fewer pixels to average
     let image = soften::soften(image, *blur);
 
-    LOADED
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(key, Some(Arc::new(image)));
+    // only while it's still wanted: an image let go during its decode (see unused) is dropped here instead
+    {
+        let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
+
+        let Some(slot @ None) = loaded.get_mut(&key) else {
+            return;
+        };
+
+        *slot = Some(Arc::new(image));
+    }
 
     changes::mark(TypeId::of::<Decoded>());
 }
@@ -222,4 +228,79 @@ fn decode_jpeg(bytes: &[u8]) -> Option<Bitmap> {
     };
 
     Some(bitmap)
+}
+
+/*
+ * lets go of a file's full size copy that only the loader holds, so no window
+ * draws it, and stops waiting for one still decoding. for a picture that was
+ * asked about but won't be shown after all; small copies stay, as with forget
+ */
+pub fn unused(path: &Path) {
+    let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
+
+    loaded.retain(|(file, cover, _), kept| {
+        let unheld = kept.as_ref().is_none_or(|kept| Arc::strong_count(kept) == 1);
+
+        file != path || cover.is_some() || !unheld
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use super::*;
+
+    // waits for the decode load() started
+    fn decoded(path: &Path) -> Arc<Bitmap> {
+        let started = Instant::now();
+
+        loop {
+            if let Some(image) = load(path, None, 0) {
+                return image;
+            }
+
+            assert!(started.elapsed() < Duration::from_secs(5), "never decoded");
+
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn held(path: &Path) -> bool {
+        let loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
+
+        loaded.contains_key(&(path.to_path_buf(), None, 0))
+    }
+
+    #[test]
+    fn unused_lets_go_only_of_pictures_nobody_draws() {
+        let path = std::env::temp_dir().join(format!("amane-unused-{}.svg", std::process::id()));
+
+        std::fs::write(&path, r#"<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect width="4" height="4" fill="red"/></svg>"#).unwrap();
+
+        // a window still draws it: it stays
+        let drawn = decoded(&path);
+
+        unused(&path);
+
+        assert!(held(&path));
+
+        // nobody does: it goes
+        drop(drawn);
+
+        unused(&path);
+
+        assert!(!held(&path));
+
+        // let go while decoding: the decode is dropped when it finishes
+        assert!(load(&path, None, 0).is_none());
+
+        unused(&path);
+
+        thread::sleep(Duration::from_millis(200));
+
+        assert!(!held(&path));
+
+        let _ = std::fs::remove_file(&path);
+    }
 }
