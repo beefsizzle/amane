@@ -68,8 +68,11 @@ fn wifi_profiles() -> Vec<(String, String)> {
     found
 }
 
-// only what networkmanager cannot work out itself, it fills in the rest
-pub fn settings(name: &str, password: Option<&str>) -> Argument {
+/*
+ * a new profile, sae for a network that only takes wpa3. only what
+ * networkmanager cannot work out itself, it fills in the rest
+ */
+pub fn settings(name: &str, password: Option<&str>, wpa3: bool) -> Argument {
     let mut connection = BTreeMap::new();
 
     connection.insert(String::from("id"), Argument::from(name));
@@ -91,7 +94,10 @@ pub fn settings(name: &str, password: Option<&str>) -> Argument {
     if let Some(password) = password {
         let mut security = BTreeMap::new();
 
-        security.insert(String::from("key-mgmt"), Argument::from("wpa-psk"));
+        security.insert(
+            String::from("key-mgmt"),
+            Argument::from(if wpa3 { "sae" } else { "wpa-psk" }),
+        );
         security.insert(String::from("psk"), Argument::from(password));
 
         groups.insert(String::from("802-11-wireless-security"), security);

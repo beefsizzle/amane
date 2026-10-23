@@ -173,7 +173,20 @@ fn join(ssid: &str, password: Option<&str>) {
         return;
     }
 
-    let settings = profile::settings(ssid, password);
+    let access_points = wifi::access_points(&device);
+
+    let mut same_name = access_points
+        .iter()
+        .filter(|access_point| access_point.ssid == ssid);
+
+    // a password alone can't make a profile for a network that also asks for a username
+    if same_name.clone().any(AccessPoint::enterprise) {
+        return;
+    }
+
+    let wpa3 = same_name.any(|access_point| access_point.wpa3_only);
+
+    let settings = profile::settings(ssid, password, wpa3);
 
     manager::add_and_activate(settings, &device);
 }
