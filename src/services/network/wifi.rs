@@ -17,9 +17,14 @@ const WIFI_DEVICE: f64 = 2.0;
 const PREPARING: f64 = 40.0;
 const ACTIVATED: f64 = 100.0;
 
-// the first wifi device, most machines only have one
+/*
+ * the wifi device to show and join with: the one joined or joining, else
+ * the one that sees the most networks. with one device nothing is asked
+ */
 pub fn device() -> Option<String> {
     let devices = Bus::system().call(NAME, PATH, NAME, "GetDevices", &[]);
+
+    let mut wifi = Vec::new();
 
     for device in devices.list() {
         let path = device.text();
@@ -27,11 +32,50 @@ pub fn device() -> Option<String> {
         let kind = Bus::system().property(NAME, path, DEVICE, "DeviceType");
 
         if kind.number() == WIFI_DEVICE {
-            return Some(String::from(path));
+            wifi.push(String::from(path));
         }
     }
 
-    None
+    if wifi.len() < 2 {
+        return wifi.pop();
+    }
+
+    let states: Vec<f64> = wifi
+        .iter()
+        .map(|path| Bus::system().property(NAME, path, DEVICE, "State").number())
+        .collect();
+
+    let seen = |index: usize| {
+        Bus::system()
+            .call(NAME, &wifi[index], WIRELESS, "GetAllAccessPoints", &[])
+            .list()
+            .len()
+    };
+
+    let chosen = pick(&states, seen);
+
+    Some(wifi.swap_remove(chosen))
+}
+
+fn pick(states: &[f64], seen: impl Fn(usize) -> usize) -> usize {
+    if let Some(in_use) = states
+        .iter()
+        .position(|state| (PREPARING..=ACTIVATED).contains(state))
+    {
+        return in_use;
+    }
+
+    let mut best = (0, 0);
+
+    for index in 0..states.len() {
+        let count = seen(index);
+
+        if index == 0 || count > best.1 {
+            best = (index, count);
+        }
+    }
+
+    best.0
 }
 
 // the networks the device saw in its last scan, strongest first
@@ -105,4 +149,40 @@ pub fn scan(device: &str) {
 
 pub fn disconnect(device: &str) {
     Bus::system().call(NAME, device, DEVICE, "Disconnect", &[]);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::pick;
+
+    #[test]
+    fn the_device_in_use_wins_without_counting_networks() {
+        let counted = Cell::new(0);
+
+        let seen = |_| {
+            counted.set(counted.get() + 1);
+            12
+        };
+
+        // an idle card, then one joined to a network
+        assert_eq!(pick(&[30.0, 100.0], seen), 1);
+
+        // still joining counts as in use
+        assert_eq!(pick(&[30.0, 50.0], seen), 1);
+
+        assert_eq!(counted.get(), 0);
+    }
+
+    #[test]
+    fn otherwise_the_device_that_sees_more_networks_wins() {
+        let seen = |index| [0, 8][index];
+
+        assert_eq!(pick(&[30.0, 30.0], seen), 1);
+
+        // an unavailable device is no better than an idle one, and a tie goes to the first
+        assert_eq!(pick(&[20.0, 30.0], |index| [8, 0][index]), 0);
+        assert_eq!(pick(&[30.0, 30.0], |_| 5), 0);
+    }
 }

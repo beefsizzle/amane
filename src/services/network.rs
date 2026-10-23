@@ -126,6 +126,13 @@ impl Network {
     pub fn set_wifi(enabled: bool) {
         worker::run(move || manager::set_wifi(enabled));
     }
+
+    // drops the saved profile and its password, so joining asks again
+    pub fn forget(ssid: &str) {
+        let ssid = String::from(ssid);
+
+        worker::run(move || profile::forget(&ssid));
+    }
 }
 
 /*

@@ -59,6 +59,7 @@ Each `AccessPoint` in `access_points()` has:
 | `Network::connect(ssid, password)` | joins a network |
 | `Network::disconnect()` | leaves the current Wi-Fi network |
 | `Network::set_wifi(enabled)` | turns the Wi-Fi radio on or off |
+| `Network::forget(ssid)` | removes the saved profile and its password, so the next `connect` needs the password again |
 
 All of them run on a background thread and return right away. The result shows up in the next poll.
 
@@ -67,6 +68,10 @@ All of them run on a background thread and return right away. The result shows u
 - For a **saved** network, pass `None`. NetworkManager already has the password.
 - For a **new secured** network, pass `Some(password)`. NetworkManager saves a new profile with it, so next time it's saved.
 - For a **new open** network, pass `None`.
+
+With a wrong password the new profile is still saved, and joining fails. `forget` it, then `connect` again with the right one.
+
+On a machine with more than one Wi-Fi device, like a laptop with a USB adapter, Amane uses the one that's joined or joining a network, otherwise the one that sees the most networks.
 
 ## A network list
 
