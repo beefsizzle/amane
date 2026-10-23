@@ -4,13 +4,25 @@ pub const NAME: &str = "org.freedesktop.NetworkManager";
 
 pub const PATH: &str = "/org/freedesktop/NetworkManager";
 
-// networkmanager's own state number for "online, with internet"
+// networkmanager's state numbers: up on the local network only, and online with internet
+const CONNECTED_LOCAL: f64 = 50.0;
 const CONNECTED_GLOBAL: f64 = 70.0;
 
-pub fn connected() -> bool {
-    let state = Bus::system().property(NAME, PATH, NAME, "State");
+pub fn state() -> f64 {
+    Bus::system().property(NAME, PATH, NAME, "State").number()
+}
 
-    state.number() == CONNECTED_GLOBAL
+// joined to a network, whether or not it reaches the internet
+pub fn connected(state: f64) -> bool {
+    state >= CONNECTED_LOCAL
+}
+
+pub fn online(state: f64) -> bool {
+    state == CONNECTED_GLOBAL
+}
+
+pub fn check_connectivity() {
+    Bus::system().call(NAME, PATH, NAME, "CheckConnectivity", &[]);
 }
 
 // the connection that carries the default route, as a map of its properties
@@ -71,4 +83,28 @@ pub fn properties(path: &str, interface: &str) -> Value {
         "GetAll",
         &arguments,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{connected, online};
+
+    #[test]
+    fn a_connection_without_internet_is_still_connected() {
+        // connected (local only), connected (site only), connected
+        for state in [50.0, 60.0, 70.0] {
+            assert!(connected(state));
+        }
+
+        assert!(!online(60.0));
+        assert!(online(70.0));
+    }
+
+    #[test]
+    fn joining_and_leaving_are_not_connected() {
+        // asleep, disconnected, disconnecting, connecting
+        for state in [10.0, 20.0, 30.0, 40.0] {
+            assert!(!connected(state));
+        }
+    }
 }
