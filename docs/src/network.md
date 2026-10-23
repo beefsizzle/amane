@@ -51,6 +51,7 @@ Each `AccessPoint` in `access_points()` has:
 | `secured()` | `true` when it needs a password |
 | `active()` | `true` for the network you're on |
 | `saved()` | `true` when NetworkManager already has a profile for it |
+| `enterprise()` | `true` when it logs in with a username as well as a password (802.1X, like eduroam). `connect` can only join those once a profile exists |
 
 ## Joining and leaving networks
 
@@ -67,7 +68,7 @@ All of them run on a background thread and return right away. The result shows u
 `connect` takes the password as an `Option`:
 
 - For a **saved** network, pass `None`. NetworkManager already has the password.
-- For a **new secured** network, pass `Some(password)`. NetworkManager saves a new profile with it, so next time it's saved.
+- For a **new secured** network, pass `Some(password)`. NetworkManager saves a new profile with it, so next time it's saved. A network that only takes WPA3 gets a WPA3 profile.
 - For a **new open** network, pass `None`.
 
 With a wrong password the new profile is still saved, and joining fails. `forget` it, then `connect` again with the right one.

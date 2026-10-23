@@ -175,7 +175,11 @@ fn join(ssid: &str, password: Option<&str>) {
         return;
     }
 
-    let settings = profile::settings(ssid, password);
+    let wpa3 = wifi::access_points(&device)
+        .iter()
+        .any(|access_point| access_point.ssid == ssid && access_point.wpa3_only);
+
+    let settings = profile::settings(ssid, password, wpa3);
 
     manager::add_and_activate(settings, &device);
 }
