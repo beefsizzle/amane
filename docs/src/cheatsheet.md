@@ -239,7 +239,7 @@ use amane::*;
 | `Memory` | `percent`, `used_kib`, `total_kib` | |
 | `Brightness` | `present`, `percent` | `set` |
 | `Audio` | `volume`, `muted`, `microphone_volume`, `microphone_muted` | `set_volume`, `toggle_mute`, `set_microphone_volume`, `toggle_microphone_mute` |
-| `Network` | `connected`, `link`, `ssid`, `strength`, `wifi_enabled`, `connecting`, `access_points` | `scan`, `connect`, `disconnect`, `set_wifi` |
+| `Network` | `connected`, `link`, `ssid`, `strength`, `wifi_enabled`, `connecting`, `access_points` | `scan`, `connect`, `disconnect`, `set_wifi`, `forget` |
 | `Bluetooth` | `available`, `powered`, `scanning`, `devices` | `set_powered`, `start_scan`, `stop_scan`, `pair`, `connect`, `disconnect`, `forget` |
 | `Media` | `players`, `active`, `title`, `artist`, `art_url`, `playing`, `position`, `length` | `play_pause`, `next`, `previous` |
 | `Notifications` | `list`, `running` | `click`, `invoke`, `dismiss`, `clear` |
