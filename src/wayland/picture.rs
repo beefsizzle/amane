@@ -132,22 +132,36 @@ impl OpenWindow {
         let mut pool = RawPool::new(size, &shm).ok()?;
 
         // argb8888 lies in memory as little endian, so blue comes first
-        for (into, pixel) in pool
+        let pixels = pool
             .mmap()
             .as_chunks_mut::<4>()
             .0
             .iter_mut()
-            .zip(bitmap.pixels.as_chunks::<4>().0)
-        {
-            let alpha = u16::from(pixel[3]);
-            let premultiply = |value: u8| ((u16::from(value) * alpha + 127) / 255) as u8;
+            .zip(bitmap.pixels.as_chunks::<4>().0);
 
-            into.copy_from_slice(&[
-                premultiply(pixel[2]),
-                premultiply(pixel[1]),
-                premultiply(pixel[0]),
-                pixel[3],
-            ]);
+        // an opaque picture is the same premultiplied, so only its channels swap
+        if bitmap
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|pixel| pixel[3] == 255)
+        {
+            for (into, pixel) in pixels {
+                *into = [pixel[2], pixel[1], pixel[0], 255];
+            }
+        } else {
+            for (into, pixel) in pixels {
+                let alpha = u16::from(pixel[3]);
+                let premultiply = |value: u8| ((u16::from(value) * alpha + 127) / 255) as u8;
+
+                into.copy_from_slice(&[
+                    premultiply(pixel[2]),
+                    premultiply(pixel[1]),
+                    premultiply(pixel[0]),
+                    pixel[3],
+                ]);
+            }
         }
 
         // the buffer outlives its pool, the compositor keeps the memory
