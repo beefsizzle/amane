@@ -96,6 +96,9 @@ pub struct Gpu {
     painted: Vec<Option<painted::Painted>>,
     painting: usize,
 
+    // how opaque the pictures going to the quads are drawn, below 1 inside a faded group of one picture (see paint.rs)
+    picture_opacity: f32,
+
     // the frame's jobs not mailed yet; none between frames and right after mailing
     pending: RefCell<Option<CommandEncoder>>,
 
@@ -154,6 +157,8 @@ impl Gpu {
 
             painted: Vec::new(),
             painting: 0,
+
+            picture_opacity: 1.0,
 
             pending: RefCell::new(None),
 

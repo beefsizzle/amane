@@ -139,11 +139,21 @@ impl OpenWindow {
         let mut pool = RawPool::new(size, &shm).ok()?;
 
         // argb8888 lies in memory as little endian, so blue comes first
-        for (into, pixel) in pool.mmap().as_chunks_mut::<4>().0.iter_mut().zip(bitmap.pixels.as_chunks::<4>().0) {
-            let alpha = u16::from(pixel[3]);
-            let premultiply = |value: u8| ((u16::from(value) * alpha + 127) / 255) as u8;
+        let pixels = pool.mmap().as_chunks_mut::<4>().0.iter_mut().zip(bitmap.pixels.as_chunks::<4>().0);
 
-            into.copy_from_slice(&[premultiply(pixel[2]), premultiply(pixel[1]), premultiply(pixel[0]), pixel[3]]);
+        // an opaque picture, like any photo, is the same premultiplied, so only its channels swap. for a fullscreen
+        // wallpaper that's a copy instead of the slowest step of showing it
+        if bitmap.pixels.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 255) {
+            for (into, pixel) in pixels {
+                *into = [pixel[2], pixel[1], pixel[0], 255];
+            }
+        } else {
+            for (into, pixel) in pixels {
+                let alpha = u16::from(pixel[3]);
+                let premultiply = |value: u8| ((u16::from(value) * alpha + 127) / 255) as u8;
+
+                into.copy_from_slice(&[premultiply(pixel[2]), premultiply(pixel[1]), premultiply(pixel[0]), pixel[3]]);
+            }
         }
 
         // the buffer outlives its pool: the compositor keeps the memory, and this program's mapping goes with the pool

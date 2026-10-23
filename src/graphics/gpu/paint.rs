@@ -54,6 +54,20 @@ impl Gpu {
                     self.draw_on_own_canvas(command, canvas, clips);
                 }
 
+                Route::FadedPicture => {
+                    let Command::Group { commands, opacity } = command else {
+                        unreachable!("only groups are routed as faded pictures");
+                    };
+
+                    let before = self.picture_opacity;
+
+                    self.picture_opacity = before * opacity;
+
+                    self.gather(commands, canvas, clips, scene, borrowed);
+
+                    self.picture_opacity = before;
+                }
+
                 Route::QuadClip(clip) => {
                     let Command::Clip { commands, .. } = command else {
                         unreachable!("only clips are routed as quad clips");
@@ -226,8 +240,14 @@ impl Gpu {
                     None => clips,
                 };
 
-                self.quads
-                    .picture(&self.device, &self.queue, &image, placement, clips);
+                self.quads.picture(
+                    &self.device,
+                    &self.queue,
+                    &image,
+                    placement,
+                    clips,
+                    self.picture_opacity,
+                );
             }
 
             _ => unreachable!("only rectangles, borders, letters and images go to the quads"),
@@ -308,6 +328,12 @@ enum Route {
     // a faded group, or a clip holding a blur, cut or shader
     OwnCanvas,
 
+    /*
+     * a faded group of one picture, which the quads draw at the group's opacity instead. one picture can't show
+     * through itself, so it looks the same, and a fading fullscreen wallpaper saves a canvas and a pass over it
+     */
+    FadedPicture,
+
     // a clip the quads apply themselves, its commands routed like any others
     QuadClip(Clip),
 
@@ -321,6 +347,8 @@ enum Route {
 fn route(command: &Command) -> Route {
     match command {
         Command::Blur { .. } | Command::Cut { .. } | Command::Shader { .. } => Route::Canvas,
+
+        Command::Group { commands, .. } if lone_picture(commands) => Route::FadedPicture,
 
         Command::Group { .. } => Route::OwnCanvas,
 
@@ -365,6 +393,19 @@ fn route(command: &Command) -> Route {
         | Command::Stroke { .. }
         | Command::Shadow { .. }
         | Command::InnerShadow { .. } => Route::Vello,
+    }
+}
+
+// one picture the quads draw, alone or inside clips the quads apply
+fn lone_picture(commands: &[Command]) -> bool {
+    let [command] = commands else {
+        return false;
+    };
+
+    match command {
+        Command::Image { .. } => matches!(route(command), Route::Quads),
+        Command::Clip { commands, .. } => matches!(route(command), Route::QuadClip(_)) && lone_picture(commands),
+        _ => false,
     }
 }
 

@@ -6,19 +6,41 @@ use vello::wgpu::{
 use crate::graphics::image::Bitmap;
 
 /*
- * an image as a gpu texture with every smaller size prepared too, so a big
- * icon shrunk into a small slot still looks smooth; colors are premultiplied,
- * which keeps soft edges from picking up dark fringes when they blend
+ * how many sizes of the image to prepare for drawing it `drawn` big: the image
+ * itself and each half size down to the drawn one, so a big icon shrunk into
+ * a small slot still looks smooth. an image drawn at its own size or larger,
+ * like a wallpaper, needs only itself
  */
-pub fn upload(device: &Device, queue: &Queue, image: &Bitmap) -> Texture {
-    let mut levels = vec![premultiplied(image)];
+pub fn levels(image: &Bitmap, drawn: (f32, f32)) -> u32 {
+    let shrink = (image.width() as f32 / drawn.0.max(1.0)).max(image.height() as f32 / drawn.1.max(1.0));
+
+    if shrink <= 1.0 {
+        return 1;
+    }
+
+    // halving until it fits, and one more so the gpu can blend between the two around the drawn size
+    let wanted = shrink.log2().ceil() as u32 + 1;
+
+    wanted.min(image.width().max(image.height()).ilog2() + 1)
+}
+
+/*
+ * an image as a gpu texture with `count` sizes of it (see `levels`). colors are
+ * premultiplied, which keeps soft edges from picking up dark fringes when they
+ * blend; an opaque image is the same either way, so it goes up as it is, and a
+ * fullscreen photo costs a copy instead of a pass over every pixel
+ */
+pub fn upload(device: &Device, queue: &Queue, image: &Bitmap, count: u32) -> Texture {
+    let first = if opaque(image) { std::borrow::Cow::Borrowed(image.pixels.as_slice()) } else { std::borrow::Cow::Owned(premultiplied(image)) };
+
+    let mut levels = vec![first];
 
     let mut width = image.width();
     let mut height = image.height();
 
     let mut sizes = vec![(width, height)];
 
-    while width > 1 || height > 1 {
+    while levels.len() < count as usize && (width > 1 || height > 1) {
         let last = levels.last().expect("failed to find the last image size");
 
         let smaller = halve(last, width, height);
@@ -26,7 +48,7 @@ pub fn upload(device: &Device, queue: &Queue, image: &Bitmap) -> Texture {
         width = (width / 2).max(1);
         height = (height / 2).max(1);
 
-        levels.push(smaller);
+        levels.push(std::borrow::Cow::Owned(smaller));
         sizes.push((width, height));
     }
 
@@ -69,6 +91,11 @@ pub fn upload(device: &Device, queue: &Queue, image: &Bitmap) -> Texture {
     }
 
     texture
+}
+
+// every pixel fully covers what's under it, so premultiplying would change nothing
+fn opaque(image: &Bitmap) -> bool {
+    image.pixels.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 255)
 }
 
 fn premultiplied(image: &Bitmap) -> Vec<u8> {

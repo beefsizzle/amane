@@ -116,7 +116,7 @@ impl Quads {
             for run in self.runs.drain(..) {
                 let picture = run
                     .picture
-                    .and_then(|key| self.pictures.get(&key))
+                    .and_then(|key| self.pictures.get(&key).map(|(group, _)| group))
                     .unwrap_or(&self.blank);
 
                 pass.set_bind_group(1, picture, &[]);

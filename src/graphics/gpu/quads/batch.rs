@@ -101,7 +101,8 @@ impl Quads {
         self.pictures.remove(&picture);
     }
 
-    // the whole image stretched over area, which the clip usually trims
+    // the whole image stretched over area, which the clip usually trims, faded by `opacity`
+    #[allow(clippy::too_many_arguments)]
     pub fn picture(
         &mut self,
         device: &Device,
@@ -109,23 +110,28 @@ impl Quads {
         image: &Bitmap,
         area: Area,
         clips: Clips,
+        opacity: f32,
     ) {
         let key = std::ptr::from_ref(image) as usize;
 
-        if !self.pictures.contains_key(&key) {
-            let texture = picture::upload(device, queue, image);
+        let levels = picture::levels(image, (area.width, area.height));
+
+        // uploaded again with more sizes when it's now drawn smaller than before
+        if self.pictures.get(&key).is_none_or(|(_, uploaded)| *uploaded < levels) {
+            let texture = picture::upload(device, queue, image, levels);
 
             let group = picture_group(device, &self.picture_inputs, &texture, &self.sampler);
 
-            self.pictures.insert(key, group);
+            self.pictures.insert(key, (group, levels));
         }
 
         let corners = [0.0, 0.0, 1.0, 1.0];
 
+        // the shader fades a picture by the color's alpha
         self.push(
             area,
             (Corners::default(), 0.0),
-            [1.0; 4],
+            [1.0, 1.0, 1.0, opacity],
             clips,
             PICTURE,
             corners,

@@ -78,7 +78,7 @@ impl Quads {
         });
 
         let empty = Bitmap::empty();
-        let empty = picture::upload(device, queue, &empty);
+        let empty = picture::upload(device, queue, &empty, 1);
 
         let blank = picture_group(device, &picture_inputs, &empty, &sampler);
 

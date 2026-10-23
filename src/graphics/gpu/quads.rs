@@ -43,8 +43,8 @@ pub struct Quads {
 
     atlas: Atlas,
 
-    // images already on the gpu, keyed by where the loaded image lives
-    pictures: HashMap<usize, BindGroup>,
+    // images already on the gpu, keyed by where the loaded image lives, with how many sizes of each went up
+    pictures: HashMap<usize, (BindGroup, u32)>,
 
     // what quads that read no image bind in the image's place
     blank: BindGroup,
