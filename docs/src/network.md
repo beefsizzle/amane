@@ -75,6 +75,8 @@ With a wrong password the new profile is still saved, and joining fails. `forget
 
 On a machine with more than one Wi-Fi device, like a laptop with a USB adapter, Amane uses the one that's joined or joining a network, otherwise the one that sees the most networks.
 
+A new profile isn't tied to the device it was joined on, so it works on whichever Wi-Fi device is there. With two Wi-Fi devices, names like `wlan0` and `wlan1` can swap between reboots, and a profile tied to one would wait on the wrong card.
+
 ## A network list
 
 ```rust
