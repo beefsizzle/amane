@@ -17,21 +17,46 @@ const WIFI_DEVICE: f64 = 2.0;
 const PREPARING: f64 = 40.0;
 const ACTIVATED: f64 = 100.0;
 
-// the first wifi device, most machines only have one
+/*
+ * the wifi device to show and join with. most machines have one, but a
+ * laptop with a usb adapter next to its own card has two, and the first
+ * one listed can be the idle one. so the device that is joined (or
+ * joining) wins, then the one that sees the most networks
+ */
 pub fn device() -> Option<String> {
     let devices = Bus::system().call(NAME, PATH, NAME, "GetDevices", &[]);
+
+    let mut best: Option<(String, Rank)> = None;
 
     for device in devices.list() {
         let path = device.text();
 
         let kind = Bus::system().property(NAME, path, DEVICE, "DeviceType");
 
-        if kind.number() == WIFI_DEVICE {
-            return Some(String::from(path));
+        if kind.number() != WIFI_DEVICE {
+            continue;
+        }
+
+        let state = Bus::system().property(NAME, path, DEVICE, "State");
+
+        let seen = Bus::system().call(NAME, path, WIRELESS, "GetAllAccessPoints", &[]);
+
+        let rank = rank(state.number(), seen.list().len());
+
+        // the first listed stays on a tie
+        if best.as_ref().is_none_or(|(_, top)| rank > *top) {
+            best = Some((String::from(path), rank));
         }
     }
 
-    None
+    best.map(|(path, _)| path)
+}
+
+// in use first, then how many networks it sees
+type Rank = (bool, usize);
+
+fn rank(state: f64, seen: usize) -> Rank {
+    ((PREPARING..=ACTIVATED).contains(&state), seen)
 }
 
 // the networks the device saw in its last scan, strongest first
@@ -105,4 +130,26 @@ pub fn scan(device: &str) {
 
 pub fn disconnect(device: &str) {
     Bus::system().call(NAME, device, DEVICE, "Disconnect", &[]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rank;
+
+    #[test]
+    fn the_device_in_use_wins_over_one_that_sees_more() {
+        // joined to a network, and an idle card that sees more
+        assert!(rank(100.0, 3) > rank(30.0, 12));
+
+        // still joining counts as in use
+        assert!(rank(50.0, 0) > rank(30.0, 12));
+    }
+
+    #[test]
+    fn otherwise_the_device_that_sees_more_networks_wins() {
+        assert!(rank(30.0, 8) > rank(30.0, 0));
+
+        // a device that is off or unavailable is no better than an idle one
+        assert!(rank(20.0, 8) > rank(30.0, 0));
+    }
 }

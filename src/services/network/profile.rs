@@ -22,6 +22,15 @@ pub fn find(name: &str) -> Option<String> {
     None
 }
 
+// removes every saved profile for this network, password included
+pub fn forget(name: &str) {
+    for (path, ssid) in wifi_profiles() {
+        if ssid == name {
+            Bus::system().call(NAME, &path, CONNECTION, "Delete", &[]);
+        }
+    }
+}
+
 // the names of every network with a saved profile
 pub fn saved_names() -> Vec<String> {
     let mut names = Vec::new();
