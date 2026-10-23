@@ -5,6 +5,7 @@ mod profile;
 mod wifi;
 
 use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::services::worker;
 use crate::{Service, Value};
@@ -24,12 +25,23 @@ pub struct Network {
 
     wifi_enabled: bool,
 
+    // false while connected to a network that doesn't reach the internet
+    internet: bool,
+
     // joining a wifi network that isn't up yet
     connecting: bool,
 
     // empty without a wifi device, or with the radio off
     access_points: Vec<AccessPoint>,
 }
+
+/*
+ * networkmanager looks for internet every five minutes, so a connection
+ * that lost it for a moment (say networkmanager was restarted before dns
+ * came back) would show none long after it returned. while it's missing,
+ * networkmanager is asked to look again this often
+ */
+const RECHECK: Duration = Duration::from_secs(20);
 
 /*
  * polled, because the access point's strength
@@ -46,10 +58,18 @@ impl Service for Network {
      * the windows aren't redrawn every second for no reason
      */
     fn listen() {
+        let mut checked: Option<Instant> = None;
+
         loop {
             thread::sleep(Self::interval());
 
             let fresh = fetch();
+
+            if fresh.connected() && !fresh.internet && checked.is_none_or(|at| at.elapsed() >= RECHECK) {
+                checked = Some(Instant::now());
+
+                worker::run(manager::check_connectivity);
+            }
 
             if *Self::read() == fresh {
                 continue;
@@ -79,6 +99,11 @@ impl Network {
 
     pub fn wifi_enabled(&self) -> bool {
         self.wifi_enabled
+    }
+
+    // connected and reaching the internet, as networkmanager's own check says
+    pub fn internet(&self) -> bool {
+        self.internet
     }
 
     pub fn connecting(&self) -> bool {
@@ -179,9 +204,13 @@ fn fetch() -> Network {
         network.connecting = wifi::connecting(&device);
     }
 
-    if !manager::connected() {
+    let state = manager::state();
+
+    if !manager::connected(state) {
         return network;
     }
+
+    network.internet = manager::online(state);
 
     let connection = manager::primary_connection();
 
