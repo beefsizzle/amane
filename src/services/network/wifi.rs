@@ -138,6 +138,10 @@ fn add(access_points: &mut Vec<AccessPoint>, access_point: AccessPoint) {
     same.strength = u8::max(same.strength, access_point.strength);
     same.secured |= access_point.secured;
     same.active |= access_point.active;
+    same.enterprise |= access_point.enterprise;
+
+    // one access point that still takes wpa2 is enough to join with it
+    same.wpa3_only &= access_point.wpa3_only;
 }
 
 // the results show up in access_points a few seconds later
