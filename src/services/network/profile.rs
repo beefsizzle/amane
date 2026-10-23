@@ -22,6 +22,21 @@ pub fn find(name: &str) -> Option<String> {
     None
 }
 
+/*
+ * saves a new profile and returns its path. it is saved on its own and
+ * joined after, because networkmanager ties a profile made while joining
+ * to the device's interface name, and with two wifi devices the names
+ * can swap on a reboot, which leaves the profile waiting on the wrong one.
+ * saved like this it works on whichever wifi device is there
+ */
+pub fn add(settings: Argument) -> Option<String> {
+    let path = Bus::system().call(NAME, SETTINGS_PATH, SETTINGS, "AddConnection", &[settings]);
+
+    let path = path.text();
+
+    (!path.is_empty()).then(|| String::from(path))
+}
+
 // removes every saved profile for this network, password included
 pub fn forget(name: &str) {
     for (path, ssid) in wifi_profiles() {

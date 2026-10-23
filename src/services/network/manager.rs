@@ -64,17 +64,6 @@ pub fn activate(profile: &str, device: &str) {
     Bus::system().call(NAME, PATH, NAME, "ActivateConnection", &arguments);
 }
 
-// saves a new profile from these settings and joins it straight away
-pub fn add_and_activate(settings: Argument, device: &str) {
-    let arguments = [
-        settings,
-        Argument::Path(String::from(device)),
-        Argument::Path(String::from("/")),
-    ];
-
-    Bus::system().call(NAME, PATH, NAME, "AddAndActivateConnection", &arguments);
-}
-
 pub fn properties(path: &str, interface: &str) -> Value {
     let arguments = [Argument::from(interface)];
 
