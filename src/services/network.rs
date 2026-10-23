@@ -177,9 +177,11 @@ fn join(ssid: &str, password: Option<&str>) {
         .iter()
         .any(|access_point| access_point.ssid == ssid && access_point.wpa3_only);
 
-    let settings = profile::settings(ssid, password, wpa3);
+    let Some(profile) = profile::add(profile::settings(ssid, password, wpa3)) else {
+        return;
+    };
 
-    manager::add_and_activate(settings, &device);
+    manager::activate(&profile, &device);
 }
 
 // the ssid comes as raw bytes, and is almost always utf-8

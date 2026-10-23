@@ -22,6 +22,18 @@ pub fn find(name: &str) -> Option<String> {
     None
 }
 
+/*
+ * saves a new profile and returns its path. one made while joining is tied
+ * to the device's name, and wifi device names can swap on a reboot
+ */
+pub fn add(settings: Argument) -> Option<String> {
+    let path = Bus::system().call(NAME, SETTINGS_PATH, SETTINGS, "AddConnection", &[settings]);
+
+    let path = path.text();
+
+    (!path.is_empty()).then(|| String::from(path))
+}
+
 // removes every saved profile for this network, password included
 pub fn forget(name: &str) {
     for (path, ssid) in wifi_profiles() {
