@@ -121,6 +121,16 @@ pub fn connecting(device: &str) -> bool {
     (PREPARING..ACTIVATED).contains(&state)
 }
 
+// the connection the device is up with, as a map of its properties
+pub fn connection(device: &str) -> crate::Value {
+    let active = Bus::system().property(NAME, device, DEVICE, "ActiveConnection");
+
+    manager::properties(
+        active.text(),
+        "org.freedesktop.NetworkManager.Connection.Active",
+    )
+}
+
 /*
  * one network often has several access points,
  * so they are merged into one entry per name

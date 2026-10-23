@@ -34,6 +34,7 @@ fn view() -> LayerWindow {
 | Function | Gives |
 |---|---|
 | `connected()` | `true` when there's any connection |
+| `internet()` | `true` when the connection reaches the internet. `false` on a network without it, or while NetworkManager's internet check is failing. Amane asks NetworkManager to check again every 20 seconds while it's `false`. |
 | `link()` | `Link::Offline`, `Wired`, `Wifi`, or `Other` |
 | `ssid()` | the Wi-Fi network's name, empty on a wired link |
 | `strength()` | Wi-Fi signal, 0 to 100, and 0 on a wired link |
