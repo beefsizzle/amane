@@ -12,6 +12,8 @@ pub struct Method {
 
     pub(crate) name: String,
 
+    pub(crate) sender: String,
+
     pub(crate) arguments: Vec<Value>,
 }
 
@@ -25,6 +27,11 @@ pub struct Methods {
 impl Method {
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    // the caller's unique name, like ":1.42", which a call always carries
+    pub fn sender(&self) -> &str {
+        &self.sender
     }
 
     pub fn arguments(&self) -> &[Value] {
@@ -89,12 +96,16 @@ impl Iterator for Methods {
                 continue;
             };
 
-            let name = message.header().member().map(|name| name.to_string());
+            let header = message.header();
+
+            let name = header.member().map(|name| name.to_string());
+            let sender = header.sender().map(|sender| sender.to_string());
 
             let method = Method {
                 connection,
 
                 name: name.unwrap_or_default(),
+                sender: sender.unwrap_or_default(),
                 arguments: convert::arguments(&message),
 
                 message,
