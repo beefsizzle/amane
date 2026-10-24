@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use smithay_client_toolkit::{
     session_lock::SessionLockSurface,
-    shell::{WaylandSurface, wlr_layer::LayerSurface, xdg::window::Window as XdgWindow},
+    shell::{WaylandSurface, xdg::window::Window as XdgWindow},
 };
 use wayland_client::{
     QueueHandle,
@@ -16,6 +16,7 @@ use crate::input::{KeyHandler, Pointer};
 use crate::scale::ScaleFactor;
 use crate::{InputArea, LayerWindow, Monitor, Widget, Window};
 
+use super::layer_surface::LayerSurface;
 use super::{
     WaylandState,
     layer::{self, Settings},
@@ -34,6 +35,12 @@ pub struct OpenWindow {
 
     pub width: u32,
     pub height: u32,
+
+    // configures that arrive now were sent before the window hid, see layer_surface.rs
+    pub stale_configures: bool,
+
+    // asked for a sync as the window hides, to learn when those have all arrived
+    pub display: wayland_client::protocol::wl_display::WlDisplay,
 
     pub scale: f32,
 

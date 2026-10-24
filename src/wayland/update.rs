@@ -6,6 +6,7 @@ use wayland_client::{
 use crate::scale::ScaleFactor;
 use crate::{InputArea, LayerWindow};
 
+use super::layer_surface::StaleUntil;
 use super::{
     WaylandState,
     layer::{self, Settings},
@@ -94,6 +95,12 @@ impl OpenWindow {
         self.role.wl_surface().attach(None, 0, 0);
 
         self.role.commit();
+
+        // configures already on their way were sent before this, see layer_surface.rs
+        self.stale_configures = true;
+
+        self.display
+            .sync(&self.qh, StaleUntil::new(self.role.wl_surface().clone()));
 
         // nothing is drawn until showing the window brings a new configure
         self.width = 0;

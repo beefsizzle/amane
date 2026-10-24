@@ -2,6 +2,7 @@ mod compositor;
 mod dropped;
 mod keyboard;
 mod layer;
+mod layer_surface;
 mod lock;
 mod normal;
 mod output;
