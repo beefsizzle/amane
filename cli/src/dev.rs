@@ -31,7 +31,12 @@ pub fn run() -> ExitCode {
 fn start(project: &Path) -> Option<Child> {
     let binary = cargo::binary(project);
 
-    let Ok(child) = Command::new(&binary).spawn() else {
+    let mut command = Command::new(&binary);
+
+    // only the Vulkan driver of the compositor's gpu, as `amane run` does
+    amane::limit_vulkan_drivers(&mut command);
+
+    let Ok(child) = command.spawn() else {
         eprintln!("failed to start {}", binary.display());
 
         return None;

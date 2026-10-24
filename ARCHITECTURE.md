@@ -155,6 +155,8 @@ The result is that the library your shell builds against is always the one that 
 
 `amane dev` builds, starts the shell, then watches your `src/` folder and rebuilds on every save. If a build fails, the old shell keeps running while you fix the error.
 
+`amane run`, `restart` and `dev` start the shell with `VK_LOADER_DRIVERS_SELECT` set to the driver of the gpu the compositor draws with (`limit_vulkan_drivers` in `src/vulkan_drivers.rs`), so the Vulkan loader doesn't start every driver installed. A marker set next to it tells `process.rs` to keep the filter from the programs the shell starts.
+
 ## Where things live
 
 ```
@@ -210,6 +212,7 @@ src/
 ├── process.rs         spawn, output, lines
 ├── files.rs           watch_file, through inotify
 ├── allocator.rs       glibc allocator limits for image decoding
+├── vulkan_drivers.rs  the Vulkan driver of the compositor's gpu, for the CLI
 └── timing.rs          AMANE_FRAMES frame logging
 cli/                   the amane command: new, target, dev, compile, run, restart, clean, ipc call
 examples/              one small program per feature

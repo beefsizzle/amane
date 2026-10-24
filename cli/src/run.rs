@@ -23,11 +23,16 @@ pub fn run() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    let mut command = Command::new(&shell);
+
+    // only the Vulkan driver of the compositor's gpu, see amane::limit_vulkan_drivers
+    amane::limit_vulkan_drivers(&mut command);
+
     /*
      * its own process group keeps ctrl+c and closing the terminal
      * away from the shell, and a closed terminal would make prints fail
      */
-    let started = Command::new(&shell)
+    let started = command
         .process_group(0)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
