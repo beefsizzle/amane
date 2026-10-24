@@ -74,6 +74,10 @@ impl WaylandState {
             width: 0,
             height: 0,
 
+            unsynced_hides: 0,
+
+            display: self.connection.display(),
+
             scale: 1.0,
 
             scale_factor: self.scale_factor,

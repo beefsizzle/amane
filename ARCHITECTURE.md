@@ -174,6 +174,7 @@ src/
 │   ├── windows.rs     opening, finding and closing windows, redraw requests
 │   ├── compositor.rs  frame callbacks and integer scale changes
 │   ├── layer.rs       layer settings and LayerShellHandler
+│   ├── layer_surface.rs  layer surfaces, and which configures get acked
 │   ├── redraw.rs      redraw, request_frame, present
 │   ├── update.rs      sending changed settings and input regions
 │   ├── seat.rs        mice and keyboards being plugged in and out

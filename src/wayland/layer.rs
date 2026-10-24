@@ -1,9 +1,10 @@
-use smithay_client_toolkit::shell::{
-    WaylandSurface,
-    wlr_layer::{
-        self, Anchor, KeyboardInteractivity, LayerShell, LayerShellHandler, LayerSurface,
-        LayerSurfaceConfigure,
-    },
+use smithay_client_toolkit::globals::ProvidesBoundGlobal;
+use smithay_client_toolkit::reexports::protocols_wlr::layer_shell::v1::client::{
+    zwlr_layer_shell_v1::{self, ZwlrLayerShellV1},
+    zwlr_layer_surface_v1::{Anchor, KeyboardInteractivity},
+};
+use smithay_client_toolkit::shell::wlr_layer::{
+    LayerShell, LayerShellHandler, LayerSurface as ToolkitLayerSurface, LayerSurfaceConfigure,
 };
 use wayland_client::{
     Connection, QueueHandle,
@@ -14,6 +15,7 @@ use crate::scale::ScaleFactor;
 use crate::{Horizontal, Keyboard, Layer, LayerWindow, Margin, Vertical, WindowSize, Zone};
 
 use super::WaylandState;
+use super::layer_surface::{self, LayerSurface};
 
 // the parts of the window the compositor knows about, kept to see what the next view changes
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,27 +57,19 @@ impl From<&LayerWindow> for Settings {
     }
 }
 
+// the windows' surfaces are made in layer_surface.rs, so these never come
 impl LayerShellHandler for WaylandState {
     fn configure(
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        layer_surface: &LayerSurface,
-        configure: LayerSurfaceConfigure,
+        _: &ToolkitLayerSurface,
+        _: LayerSurfaceConfigure,
         _: u32,
     ) {
-        let Some(window) = self.window(layer_surface.wl_surface()) else {
-            return;
-        };
-
-        let (width, height) = configure.new_size;
-
-        window.resize(width, height);
     }
 
-    fn closed(&mut self, _: &Connection, _: &QueueHandle<Self>, layer_surface: &LayerSurface) {
-        self.close(layer_surface.wl_surface());
-    }
+    fn closed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &ToolkitLayerSurface) {}
 }
 
 pub fn create(
@@ -86,20 +80,25 @@ pub fn create(
     settings: &Settings,
     scale_factor: ScaleFactor,
 ) -> LayerSurface {
+    let shell: ZwlrLayerShellV1 =
+        ProvidesBoundGlobal::<ZwlrLayerShellV1, 4>::bound_global(layer_shell)
+            .expect("failed to find wlr-layer-shell");
+
     // with no output given, the compositor chooses the monitor
-    let layer_surface = layer_shell.create_layer_surface(
-        qh,
+    let layer_surface = LayerSurface::new(
+        &shell,
         surface,
-        to_layer(settings.layer),
-        Some(settings.namespace),
         output,
+        to_layer(settings.layer),
+        settings.namespace,
+        qh,
     );
 
     apply(&layer_surface, settings, scale_factor);
 
     // a window that starts hidden makes this first commit once it is shown
     if settings.visible {
-        layer_surface.commit();
+        layer_surface.wl_surface().commit();
     }
 
     layer_surface
@@ -107,7 +106,9 @@ pub fn create(
 
 // the requests only take effect with the next commit
 pub fn apply(layer_surface: &LayerSurface, settings: &Settings, scale_factor: ScaleFactor) {
-    layer_surface.set_layer(to_layer(settings.layer));
+    let layer_surface = layer_surface.layer();
+
+    layer_surface::set_layer(layer_surface, to_layer(settings.layer));
 
     layer_surface.set_size(
         to_pixels(settings.width, scale_factor),
@@ -142,35 +143,35 @@ fn to_anchor(settings: &Settings) -> Anchor {
     let mut anchor = Anchor::empty();
 
     match settings.vertical {
-        Vertical::Top => anchor |= Anchor::TOP,
+        Vertical::Top => anchor |= Anchor::Top,
         Vertical::Middle => {}
-        Vertical::Bottom => anchor |= Anchor::BOTTOM,
+        Vertical::Bottom => anchor |= Anchor::Bottom,
     }
 
     match settings.horizontal {
-        Horizontal::Left => anchor |= Anchor::LEFT,
+        Horizontal::Left => anchor |= Anchor::Left,
         Horizontal::Middle => {}
-        Horizontal::Right => anchor |= Anchor::RIGHT,
+        Horizontal::Right => anchor |= Anchor::Right,
     }
 
     // stretching only works between two opposite anchored edges
     if settings.width == WindowSize::Full {
-        anchor |= Anchor::LEFT | Anchor::RIGHT;
+        anchor |= Anchor::Left | Anchor::Right;
     }
 
     if settings.height == WindowSize::Full {
-        anchor |= Anchor::TOP | Anchor::BOTTOM;
+        anchor |= Anchor::Top | Anchor::Bottom;
     }
 
     anchor
 }
 
-fn to_layer(layer: Layer) -> wlr_layer::Layer {
+fn to_layer(layer: Layer) -> zwlr_layer_shell_v1::Layer {
     match layer {
-        Layer::Background => wlr_layer::Layer::Background,
-        Layer::Bottom => wlr_layer::Layer::Bottom,
-        Layer::Top => wlr_layer::Layer::Top,
-        Layer::Overlay => wlr_layer::Layer::Overlay,
+        Layer::Background => zwlr_layer_shell_v1::Layer::Background,
+        Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
+        Layer::Top => zwlr_layer_shell_v1::Layer::Top,
+        Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
     }
 }
 
