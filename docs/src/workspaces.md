@@ -1,10 +1,12 @@
 # Workspaces
 
-`Workspaces` lists your compositor's workspaces and can switch between them. It supports **niri**, **Hyprland**, **Sway** and **Mango (MangoWC)**. On other compositors, the list stays empty.
+`Workspaces` lists your compositor's workspaces and can switch between them. It supports **niri**, **Hyprland**, **Sway**, **Mango (MangoWC)** and **Umbriel**. On other compositors, the list stays empty.
 
 It doesn't poll. It follows the compositor's event stream, so the bar updates the moment you switch.
 
 On Mango, each tag is a workspace. Several tags can be active on one monitor at once, and every active tag on the focused monitor has `focused() == true`. Tags report their number, monitor, urgency and window count; Mango's IPC doesn't provide tag names. `Workspaces::focus(id)` selects that tag on its own monitor. Mango is detected through `MANGO_INSTANCE_SIGNATURE` and accessed directly through its IPC socket, so `mmsg` isn't required.
+
+On Umbriel, each monitor has its own numbered workspaces, and a workspace's `name()` is set only when it was given one. `Workspaces::focus(id)` switches to it on its own monitor. Umbriel is detected through `UMBRIEL_SOCKET` and accessed directly through that socket.
 
 ## Workspace buttons
 
@@ -53,7 +55,7 @@ fn button(workspace: &Workspace) -> Rectangle {
 
 | Function | Gives |
 |---|---|
-| `id()` | the id that `Workspaces::focus` takes; the compositor's id, or an id Amane assigns to a monitor/tag pair on Mango; an `i64`, because named Hyprland workspaces have negative ids |
+| `id()` | the id that `Workspaces::focus` takes; the compositor's id, or an id Amane assigns to a monitor/tag pair on Mango and a monitor/workspace pair on Umbriel; an `i64`, because named Hyprland workspaces have negative ids |
 | `index()` | its position on its monitor, starting at 1; on Hyprland and Sway, the workspace's number (0 for a workspace with only a name) |
 | `name()` | its name, or `None` for workspaces you never named |
 | `output()` | the monitor it's on, like `"DP-1"`, or `None` |
