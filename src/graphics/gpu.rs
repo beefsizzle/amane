@@ -128,6 +128,8 @@ impl Gpu {
             queue,
             vello,
             atlas_drops,
+            passes,
+            quads: quads_shader,
         } = shared::get(&instance, &surface);
 
         let config = target::configure(&surface, &adapter);
@@ -135,12 +137,24 @@ impl Gpu {
         // the canvas and the surface hold premultiplied colors
         let over = Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING);
 
-        let composite = Pass::new(&device, "composite", TextureFormat::Rgba8Unorm, over);
-        let present = Pass::new(&device, "composite", config.format, None);
-        let box_blur = Pass::new(&device, "box_blur", TextureFormat::Rgba8Unorm, None);
-        let erase = cut::erase(&device);
+        let composite = Pass::new(
+            &device,
+            &passes,
+            "composite",
+            TextureFormat::Rgba8Unorm,
+            over,
+        );
+        let present = Pass::new(&device, &passes, "composite", config.format, None);
+        let box_blur = Pass::new(
+            &device,
+            &passes,
+            "box_blur",
+            TextureFormat::Rgba8Unorm,
+            None,
+        );
+        let erase = cut::erase(&device, &passes);
 
-        let quads = quads::Quads::new(&device, &queue);
+        let quads = quads::Quads::new(&device, &queue, &quads_shader);
 
         Self {
             device,

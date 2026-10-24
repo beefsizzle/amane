@@ -5,8 +5,8 @@ use vello::wgpu::{
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
     BufferBindingType, ColorTargetState, ColorWrites, Device, FilterMode, FragmentState,
     MipmapFilterMode, PipelineLayoutDescriptor, Queue, RenderPipelineDescriptor, Sampler,
-    SamplerBindingType, SamplerDescriptor, ShaderStages, Texture, TextureFormat, TextureSampleType,
-    TextureViewDimension, VertexState, include_wgsl,
+    SamplerBindingType, SamplerDescriptor, ShaderModule, ShaderStages, Texture, TextureFormat,
+    TextureSampleType, TextureViewDimension, VertexState,
 };
 
 use crate::graphics::gpu::atlas::Atlas;
@@ -16,7 +16,7 @@ use crate::graphics::image::Bitmap;
 use super::Quads;
 
 impl Quads {
-    pub fn new(device: &Device, queue: &Queue) -> Self {
+    pub fn new(device: &Device, queue: &Queue, module: &ShaderModule) -> Self {
         let inputs = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
             entries: &[quads_entry(), canvas_entry(), texture_entry(2, false)],
@@ -33,15 +33,13 @@ impl Quads {
             immediate_size: 0,
         });
 
-        let module = device.create_shader_module(include_wgsl!("../quads.wgsl"));
-
         // the canvas holds premultiplied colors, so the quads land on it the same way
         let pipeline = |blend| {
             device.create_render_pipeline(&RenderPipelineDescriptor {
                 label: None,
                 layout: Some(&layout),
                 vertex: VertexState {
-                    module: &module,
+                    module,
                     entry_point: Some("vertex"),
                     compilation_options: Default::default(),
                     buffers: &[],
@@ -50,7 +48,7 @@ impl Quads {
                 depth_stencil: None,
                 multisample: Default::default(),
                 fragment: Some(FragmentState {
-                    module: &module,
+                    module,
                     entry_point: Some("fragment"),
                     compilation_options: Default::default(),
                     targets: &[Some(ColorTargetState {

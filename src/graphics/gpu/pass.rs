@@ -4,8 +4,8 @@ use vello::wgpu::{
     BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBindingType,
     BufferUsages, ColorTargetState, ColorWrites, CommandEncoder, Device, FragmentState, LoadOp,
     Operations, PipelineLayoutDescriptor, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, ShaderStages, StoreOp, TextureFormat,
-    TextureSampleType, TextureView, TextureViewDimension, VertexState, include_wgsl,
+    RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderStages, StoreOp, TextureFormat,
+    TextureSampleType, TextureView, TextureViewDimension, VertexState,
 };
 
 /*
@@ -20,6 +20,7 @@ pub struct Pass {
 impl Pass {
     pub fn new(
         device: &Device,
+        module: &ShaderModule,
         fragment: &str,
         format: TextureFormat,
         blend: Option<BlendState>,
@@ -35,8 +36,6 @@ impl Pass {
             immediate_size: 0,
         });
 
-        let module = device.create_shader_module(include_wgsl!("passes.wgsl"));
-
         let target = ColorTargetState {
             format,
             blend,
@@ -47,7 +46,7 @@ impl Pass {
             label: None,
             layout: Some(&layout),
             vertex: VertexState {
-                module: &module,
+                module,
                 entry_point: Some("vertex"),
                 compilation_options: Default::default(),
                 buffers: &[],
@@ -56,7 +55,7 @@ impl Pass {
             depth_stencil: None,
             multisample: Default::default(),
             fragment: Some(FragmentState {
-                module: &module,
+                module,
                 entry_point: Some(fragment),
                 compilation_options: Default::default(),
                 targets: &[Some(target)],

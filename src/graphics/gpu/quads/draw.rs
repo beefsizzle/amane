@@ -152,7 +152,8 @@ mod tests {
         let (device, queue) =
             wait(adapter.request_device(&DeviceDescriptor::default())).expect("failed to open gpu");
         let canvas = texture::canvas(&device, 16, 16);
-        let mut quads = Quads::new(&device, &queue);
+        let module = device.create_shader_module(vello::wgpu::include_wgsl!("../quads.wgsl"));
+        let mut quads = Quads::new(&device, &queue, &module);
 
         // every pass shares one encoder, like a real frame
         let mut encoder = device.create_command_encoder(&Default::default());
