@@ -17,6 +17,10 @@ static DEFAULT_FAMILY: LazyLock<Mutex<String>> =
 static LOADED: LazyLock<Mutex<HashMap<String, FontRef<'static>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+// each font file once, by path: a variable font is one file for every weight
+static FILES: LazyLock<Mutex<HashMap<String, &'static [u8]>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 // a variable font's slider positions, kept by the font's key; a font without any isn't listed
 static COORDS: LazyLock<Mutex<HashMap<u64, &'static [i16]>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -83,14 +87,72 @@ fn read(family: &str, weight: Weight) -> FontRef<'static> {
     open(&found.path.to_string_lossy(), index)
 }
 
-fn open(path: &str, index: u32) -> FontRef<'static> {
-    let bytes = std::fs::read(path).expect("failed to read font file");
+/*
+ * caches each font file for the process lifetime, mapped when possible so
+ * only the parts used take memory, and read into memory otherwise
+ */
+fn file(path: &str) -> &'static [u8] {
+    let mut files = FILES.lock().unwrap_or_else(PoisonError::into_inner);
 
-    /*
-     * fonts stay loaded until the program exits,
-     * so leaking gives bytes that are valid forever
-     */
-    let bytes = Vec::leak(bytes);
+    if let Some(bytes) = files.get(path) {
+        return bytes;
+    }
+
+    let bytes = map(path)
+        .unwrap_or_else(|| Vec::leak(std::fs::read(path).expect("failed to read font file")));
+
+    files.insert(String::from(path), bytes);
+
+    bytes
+}
+
+// the whole file mapped read-only and never unmapped; an update replaces the file, so the mapping keeps the old one
+fn map(path: &str) -> Option<&'static [u8]> {
+    use std::ffi::{c_int, c_void};
+    use std::os::fd::AsRawFd;
+
+    const PROT_READ: c_int = 1;
+    const MAP_PRIVATE: c_int = 2;
+
+    unsafe extern "C" {
+        fn mmap(
+            address: *mut c_void,
+            length: usize,
+            protection: c_int,
+            flags: c_int,
+            fd: c_int,
+            offset: i64,
+        ) -> *mut c_void;
+    }
+
+    let file = std::fs::File::open(path).ok()?;
+
+    let length = usize::try_from(file.metadata().ok()?.len())
+        .ok()
+        .filter(|length| *length > 0)?;
+
+    let address = unsafe {
+        mmap(
+            std::ptr::null_mut(),
+            length,
+            PROT_READ,
+            MAP_PRIVATE,
+            file.as_raw_fd(),
+            0,
+        )
+    };
+
+    // MAP_FAILED
+    if address as isize == -1 {
+        return None;
+    }
+
+    // read-only, never unmapped, and nothing else writes to it
+    Some(unsafe { std::slice::from_raw_parts(address.cast::<u8>(), length) })
+}
+
+fn open(path: &str, index: u32) -> FontRef<'static> {
+    let bytes = file(path);
 
     // fontconfig keeps a variable font's named style in the upper half, the file only knows the lower
     let font_index = index & 0xffff;
