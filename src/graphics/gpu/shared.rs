@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use vello::wgpu::{
     Adapter, Device, DeviceDescriptor, DeviceLostReason, Instance, InstanceDescriptor, MemoryHints,
-    Queue, RequestAdapterOptions, Surface,
+    Queue, RequestAdapterOptions, ShaderModule, Surface, include_wgsl,
 };
 use vello::{AaSupport, RendererOptions};
 
@@ -27,6 +27,10 @@ pub struct Shared {
 
     // how many times vello dropped its image atlas, which every window's images were in
     pub atlas_drops: Rc<Cell<u64>>,
+
+    // compiled once and shared, instead of a copy for every window's pipelines
+    pub passes: ShaderModule,
+    pub quads: ShaderModule,
 }
 
 // every window draws on the main thread, so thread locals are enough
@@ -114,11 +118,16 @@ fn open(instance: &Instance, surface: &Surface) -> Shared {
 
     let vello = vello::Renderer::new(&device, vello_options).expect("failed to start vello");
 
+    let passes = device.create_shader_module(include_wgsl!("passes.wgsl"));
+    let quads = device.create_shader_module(include_wgsl!("quads.wgsl"));
+
     Shared {
         adapter,
         device,
         queue,
         vello: Rc::new(RefCell::new(vello)),
         atlas_drops: Rc::new(Cell::new(0)),
+        passes,
+        quads,
     }
 }

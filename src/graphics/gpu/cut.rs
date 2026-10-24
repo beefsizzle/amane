@@ -1,6 +1,7 @@
 use vello::Scene;
 use vello::wgpu::{
-    BlendComponent, BlendFactor, BlendOperation, BlendState, Device, Texture, TextureFormat,
+    BlendComponent, BlendFactor, BlendOperation, BlendState, Device, ShaderModule, Texture,
+    TextureFormat,
 };
 
 use crate::graphics::{BezierPath, Color, Transform};
@@ -46,9 +47,10 @@ impl Gpu {
 }
 
 // keeps only the part of the canvas the shape leaves uncovered, whatever color the shape is
-pub(super) fn erase(device: &Device) -> Pass {
+pub(super) fn erase(device: &Device, module: &ShaderModule) -> Pass {
     Pass::new(
         device,
+        module,
         "composite",
         TextureFormat::Rgba8Unorm,
         Some(erase_blend()),
