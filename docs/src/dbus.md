@@ -197,4 +197,5 @@ busctl --user call org.example.Shell /org/example/Shell org.example.Shell Ping
 - `own(name)` takes a well-known name, and returns `false` if another program already has it. Amane never takes a name away from another program.
 - `methods(path, interface)` waits for each call to that object and interface.
 - `method.arguments()` gives the call's arguments, and `method.reply(...)` answers it.
+- `method.sender()` is the caller's unique name, like `:1.42`.
 - `bus.emit(path, interface, name, &arguments![...])` sends a signal of your own.
