@@ -20,6 +20,7 @@ mod scale;
 mod services;
 mod style;
 mod timing;
+mod vulkan_drivers;
 mod wayland;
 mod widgets;
 mod window;
@@ -50,6 +51,7 @@ pub use services::{
     Service, Urgency, Workspace, Workspaces,
 };
 pub use style::{Fill, Image, Mask, Radius, Shadow};
+pub use vulkan_drivers::limit_vulkan_drivers;
 pub use widgets::{
     Arc, Canvas, Circle, Column, Line, Path, Rectangle, Row, ScrollArea, Shape, Stack, Text,
     TextInput, Widget,

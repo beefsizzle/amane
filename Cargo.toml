@@ -14,6 +14,8 @@ vello = "0.11"
 # only for glsl shaders, vello already brings wgpu and this turns on its glsl reader
 wgpu = { version = "30.0", default-features = false, features = ["glsl"] }
 wayland-client = "0.31.15"
+# linux-dmabuf, to ask the compositor which gpu it draws with (see vulkan_drivers.rs)
+wayland-protocols = { version = "0.32", features = ["client"] }
 # only for client_system, which hands the gpu libwayland's own display pointer
 wayland-backend = { version = "0.3.17", features = ["client_system"] }
 fontconfig = "0.11"

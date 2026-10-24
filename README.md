@@ -122,7 +122,7 @@ amane compile --restart
 
 ### amane run
 
-Starts the shell `amane compile` saved, in the background. Your terminal is free right away, and closing it doesn't stop the shell. It never builds, so after editing your shell, run `amane compile` first. If a shell is already running, it stops with an error instead of starting a second one.
+Starts the shell `amane compile` saved, in the background. Your terminal is free right away, and closing it doesn't stop the shell. It never builds, so after editing your shell, run `amane compile` first. If a shell is already running, it stops with an error instead of starting a second one. It also starts the shell with only the Vulkan driver of the gpu your compositor draws with, which saves a laptop with two gpus the other driver's memory (see [docs/src/cli.md](docs/src/cli.md)).
 
 ```sh
 amane run

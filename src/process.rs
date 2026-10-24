@@ -42,6 +42,8 @@ fn shell(command: &str) -> Command {
 
     shell.arg("-c").arg(command);
 
+    crate::vulkan_drivers::leave_out_filter(&mut shell);
+
     shell
 }
 

@@ -29,6 +29,12 @@
 
 These paths follow `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` when they're set.
 
+## Only your gpu's Vulkan driver
+
+The Vulkan loader starts every Vulkan driver installed when a program sets up its gpu, even for gpus it never draws on. On a laptop with Intel and NVIDIA graphics, that's about 35 MB of NVIDIA's libraries in your shell, and the NVIDIA card held open. So `amane run`, `amane restart` and `amane dev` ask the compositor which gpu it draws with, and start the shell with `VK_LOADER_DRIVERS_SELECT` set to that gpu's driver, like `*intel*`. Programs the shell starts, like apps from a launcher, don't get it, so they can still use the other gpu (with `prime-run`, say).
+
+It's left out when the compositor doesn't say (it needs linux-dmabuf version 4), when no installed driver matches, when that's the only driver anyway, or when you've set `VK_LOADER_DRIVERS_SELECT`, `VK_LOADER_DRIVERS_DISABLE`, `VK_DRIVER_FILES`, `VK_ICD_FILENAMES` or `VK_ADD_DRIVER_FILES` yourself, which the shell then gets as they are. A shell started some other way loads every driver.
+
 You never edit anything in the cache folder. Deleting it is safe. The next build makes it again, from scratch.
 
 `project/` is the big one, often close to 1 GB. It only makes rebuilds fast, and your shell never reads it. Run `amane clean` to delete it. It asks first, because the next `amane compile` or `amane dev` then builds everything again from scratch, which takes a few minutes. To build and shrink in one go without the question:
