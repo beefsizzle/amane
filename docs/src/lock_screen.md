@@ -134,6 +134,9 @@ fn main() {
 | `Listening` | waiting for a finger |
 | `Retry` | the scan was poor, waiting for another |
 | `NoMatch` | a finger that isn't enrolled, waiting for another |
+| `TooManyTries` | 5 fingers this lock weren't enrolled, so the reader stops listening until the next lock. The password still works |
+
+Each lock allows 5 fingers that fprintd compares and rejects. After the fifth, the reader is given back and stays off until the screen locks again, even across sleep or fprintd restarting. Poor scans (`Retry`) and claiming the reader again after sleep don't count. A password unlock ends the lock, so the next lock starts with 5 tries again; a wrong password doesn't reset them. The cap is there because each scan of a stranger's finger is another chance for the matcher to accept it by mistake, and some readers' matchers are only good for a few chances.
 
 This talks to fprintd on the system bus instead of going through `pam_fprintd`, which holds the PAM conversation until a finger comes and makes the password wait. Only fprintd decides a finger matches: a match counts only when it comes from fprintd's own bus connection and from the reader this lock claimed, since any program can send a signal with that name.
 

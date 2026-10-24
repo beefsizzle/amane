@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 use std::thread;
 use std::time::Duration;
@@ -37,6 +37,8 @@ pub enum Fingerprint {
     Retry,
     /// a finger that isn't enrolled, waiting for another
     NoMatch,
+    /// too many fingers that aren't enrolled: the reader is given back until the next lock, the password still works
+    TooManyTries,
 }
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
@@ -56,6 +58,9 @@ struct Claim {
 
 static CLAIMED: Mutex<Option<Claim>> = Mutex::new(None);
 
+// fingers that didn't match in the lock that's on, changed only while holding CLAIMED
+static MISSES: AtomicU32 = AtomicU32::new(0);
+
 // held while the reader is being claimed or given back, so two of those never interleave
 static WORKING: Mutex<()> = Mutex::new(());
 
@@ -66,6 +71,13 @@ const RETRY_AFTER: Duration = Duration::from_secs(3);
 
 // how long "not recognised" or "try again" stays up before it goes back to listening
 const MESSAGE_FOR: Duration = Duration::from_secs(2);
+
+/*
+ * how many fingers may fail to match in one lock before the reader is given back. the matcher behind some readers
+ * is only good for a few tries: each scan of a stranger's finger is another random draw, and enough of them get one
+ * past. poor scans and claiming the reader again after sleep don't count, only fingers fprintd compared and rejected
+ */
+const MAX_MISSES: u32 = 5;
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
@@ -80,9 +92,17 @@ pub(super) fn current(round: u64) -> bool {
     ON.load(Ordering::SeqCst) && ROUND.load(Ordering::SeqCst) == round
 }
 
+// the lock that's on has used up its fingers and only takes the password
+fn spent() -> bool {
+    MISSES.load(Ordering::SeqCst) >= MAX_MISSES
+}
+
 // a lock started: claim the reader and wait for a finger, unless fingerprints are off
 pub(super) fn begin() {
     let round = ROUND.fetch_add(1, Ordering::SeqCst) + 1;
+
+    // every lock gets its own tries, so a password unlock clears them along with the lock it ended
+    MISSES.store(0, Ordering::SeqCst);
 
     if !ENABLED.load(Ordering::Relaxed) {
         return;
@@ -121,10 +141,12 @@ pub(super) fn end() {
  * reader can take a while to come back from sleep. call it holding WORKING
  */
 fn keep_trying(round: u64, mut missing: u32) {
-    while current(round) {
+    while current(round) && !spent() {
         match claim(round) {
             Ok(true) => {
-                Lock::fingerprint_changed(round, Fingerprint::Listening);
+                if !spent() {
+                    Lock::fingerprint_changed(round, Fingerprint::Listening);
+                }
 
                 return;
             }
@@ -150,9 +172,9 @@ fn keep_trying(round: u64, mut missing: u32) {
 }
 
 // gives the reader back and claims it again for the lock that's on: after a reader error, a wake from sleep (USB
-// readers are often reset), or fprintd starting over
+// readers are often reset), or fprintd starting over. not once the lock has used up its tries
 fn restart() {
-    if !ON.load(Ordering::SeqCst) {
+    if !ON.load(Ordering::SeqCst) || spent() {
         return;
     }
 
@@ -225,8 +247,8 @@ fn claim(round: u64) -> zbus::Result<bool> {
     {
         let mut claimed = lock(&CLAIMED);
 
-        // the lock ended while this was on its way
-        if !current(round) {
+        // the lock ended, or used up its tries, while this was on its way
+        if !current(round) || spent() {
             drop(claimed);
 
             let _ = call(&device, DEVICE, "Release");
@@ -317,8 +339,10 @@ fn owner_changed(signal: &Signal) {
 
 // VerifyStatus(result, done)
 fn verified(signal: &Signal) {
-    let (round, device) = {
-        let claimed = lock(&CLAIMED);
+    let result = signal.arguments().first().map_or("", crate::Value::text);
+
+    let (round, device, last) = {
+        let mut claimed = lock(&CLAIMED);
 
         let Some(claim) = claimed.as_ref() else { return };
 
@@ -327,13 +351,29 @@ fn verified(signal: &Signal) {
             return;
         }
 
-        (claim.round, claim.device.clone())
-    };
+        let (round, device) = (claim.round, claim.device.clone());
 
-    let result = signal.arguments().first().map_or("", crate::Value::text);
+        // counted and given up under the same lock a new claim is checked under, so none slips in after the last try
+        let last = result == "verify-no-match"
+            && current(round)
+            && MISSES.fetch_add(1, Ordering::SeqCst) + 1 >= MAX_MISSES;
+
+        (round, device, if last { claimed.take() } else { None })
+    };
 
     match result {
         "verify-match" => Lock::fingerprint_matched(round),
+
+        // the last try: the reader goes back to fprintd and only the password unlocks this lock
+        "verify-no-match" if let Some(claim) = last => {
+            Lock::fingerprint_changed(round, Fingerprint::TooManyTries);
+
+            thread::spawn(move || {
+                let _working = lock(&WORKING);
+
+                give_back(&claim);
+            });
+        }
 
         // fprintd stops after an answer, so it's asked to listen again
         "verify-no-match" => {
