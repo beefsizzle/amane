@@ -52,6 +52,21 @@ impl Method {
 
         let _ = self.connection.reply(&header, &body);
     }
+
+    // refuses the call with a D-Bus error name, like "org.bluez.Error.Rejected", and a message
+    pub fn reply_error(&self, name: &str, message: &str) {
+        let header = self.message.header();
+
+        if self
+            .connection
+            .reply_error(&header, name, &message)
+            .is_err()
+        {
+            let _ =
+                self.connection
+                    .reply_error(&header, "org.freedesktop.DBus.Error.Failed", &message);
+        }
+    }
 }
 
 impl Bus {
