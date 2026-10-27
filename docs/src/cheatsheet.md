@@ -266,6 +266,7 @@ use amane::*;
 | `bus.property(dest, path, iface, name)` | reads a property |
 | `bus.call(dest, path, iface, method, &arguments![...])` | calls a method |
 | `bus.signals(iface, name)` | each matching signal |
+| `bus.signals_from(sender, iface, name)` | the same, from one program only |
 
 ## Command line
 

@@ -144,6 +144,14 @@ fn listen() {
 
 Each `Signal` has `sender()`, `path()`, and `arguments()`. `sender()` is the sender's unique name, like `:1.42`, not a well-known name like `org.mpris.MediaPlayer2.mpv`.
 
+An interface every program has, like `org.freedesktop.DBus.Properties`, sends signals from all of them. `signals_from` asks the bus for one program's only, by any of its names, so the others never wake your thread:
+
+```rust,ignore
+for signal in bus.signals_from("org.freedesktop.NetworkManager", "org.freedesktop.DBus.Properties", "PropertiesChanged") {
+    // only networkmanager's changes come here
+}
+```
+
 ## Answering calls
 
 Your shell can offer its own D-Bus interface, so other programs can call it:

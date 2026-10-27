@@ -1,5 +1,6 @@
 use zbus::MatchRule;
 use zbus::blocking::MessageIterator;
+use zbus::match_rule::Builder;
 use zbus::message::Type;
 
 use crate::Value;
@@ -38,20 +39,35 @@ impl Signal {
 impl Bus {
     // waits for each matching signal, so call it from a service thread, not from view()
     pub fn signals(&self, interface: &str, name: &str) -> Signals {
-        let rule = MatchRule::builder()
-            .msg_type(Type::Signal)
-            .interface(interface)
-            .expect("failed to watch signals: bad interface name")
-            .member(name)
-            .expect("failed to watch signals: bad signal name")
+        self.watch(rule(interface, name).build())
+    }
+
+    // the same, from one program only; the bus leaves the rest out, which matters for an interface every program has
+    pub fn signals_from(&self, sender: &str, interface: &str, name: &str) -> Signals {
+        let rule = rule(interface, name)
+            .sender(sender)
+            .expect("failed to watch signals: bad sender name")
             .build();
 
+        self.watch(rule)
+    }
+
+    fn watch(&self, rule: MatchRule<'_>) -> Signals {
         let messages = self
             .connection
             .and_then(|connection| MessageIterator::for_match_rule(rule, connection, None).ok());
 
         Signals { messages }
     }
+}
+
+fn rule<'a>(interface: &'a str, name: &'a str) -> Builder<'a> {
+    MatchRule::builder()
+        .msg_type(Type::Signal)
+        .interface(interface)
+        .expect("failed to watch signals: bad interface name")
+        .member(name)
+        .expect("failed to watch signals: bad signal name")
 }
 
 impl Iterator for Signals {
