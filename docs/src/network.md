@@ -2,7 +2,7 @@
 
 `Network` shows the current connection and lists Wi-Fi networks, and it can join, leave, and scan. It talks to NetworkManager over D-Bus, so NetworkManager has to be running. Without it, everything reads as offline.
 
-It polls once a second, because Wi-Fi strength changes all the time without anything announcing it. A poll that finds nothing new doesn't redraw anything.
+It follows NetworkManager's own change signals, the Wi-Fi strength included, so an idle connection costs nothing. A burst of changes, like joining a network, is fetched once it settles, and a change that leaves what's shown the same doesn't redraw anything.
 
 ## A connection label
 
@@ -63,7 +63,7 @@ Each `AccessPoint` in `access_points()` has:
 | `Network::set_wifi(enabled)` | turns the Wi-Fi radio on or off |
 | `Network::forget(ssid)` | removes the saved profile and its password, so the next `connect` needs the password again |
 
-All of them run on a background thread and return right away. The result shows up in the next poll.
+All of them run on a background thread and return right away. The result shows up once NetworkManager announces it.
 
 `connect` takes the password as an `Option`:
 

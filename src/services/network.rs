@@ -4,11 +4,13 @@ mod manager;
 mod profile;
 mod wifi;
 
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::dbus::Signal;
 use crate::services::worker;
-use crate::{Service, Value};
+use crate::{Bus, Service, Value};
 
 pub use access_point::AccessPoint;
 pub use link::Link;
@@ -38,9 +40,22 @@ pub struct Network {
 // networkmanager's own check only runs every five minutes
 const RECHECK: Duration = Duration::from_secs(20);
 
+// networkmanager's objects all live under this path
+const PATH: &str = "/org/freedesktop/NetworkManager";
+
+// changes nothing here shows, which some cards send every few seconds
+const UNSHOWN: [&str; 2] = ["Bitrate", "LastSeen"];
+
+// a burst of changes, like joining a network, is fetched once it has been quiet this long, or after a second at most
+const SETTLE: Duration = Duration::from_millis(200);
+const SETTLE_AT_MOST: Duration = Duration::from_secs(1);
+
+// how long a lost bus is left before the changes are watched again
+const REWATCH: Duration = Duration::from_secs(5);
+
 /*
- * polled, because the access point's strength
- * changes all the time without a new connection
+ * fetched again when networkmanager announces a change, the access
+ * point's strength included, so an idle connection costs nothing
  */
 impl Service for Network {
     fn new() -> Self {
@@ -49,31 +64,43 @@ impl Service for Network {
 
     /*
      * networkmanager is asked outside the lock, so a slow answer never
-     * holds up a frame, and nothing is written when nothing changed, so
-     * the windows aren't redrawn every second for no reason
+     * holds up a frame, and nothing is written when nothing changed
      */
     fn listen() {
+        let mut changes = watch();
         let mut checked: Option<Instant> = None;
 
         loop {
-            thread::sleep(Self::interval());
-
             let fresh = fetch();
 
-            if fresh.connected()
-                && !fresh.internet
-                && checked.is_none_or(|at| at.elapsed() >= RECHECK)
-            {
+            let without_internet = fresh.connected() && !fresh.internet;
+
+            if without_internet && checked.is_none_or(|at| at.elapsed() >= RECHECK) {
                 checked = Some(Instant::now());
 
                 worker::run(manager::check_connectivity);
             }
 
-            if *Self::read() == fresh {
+            if *Self::read() != fresh {
+                *Self::write() = fresh;
+            }
+
+            // without internet the check above comes round again, even when nothing changes
+            let next = if without_internet {
+                changes.recv_timeout(RECHECK)
+            } else {
+                changes.recv().map_err(|_| RecvTimeoutError::Disconnected)
+            };
+
+            if next == Err(RecvTimeoutError::Disconnected) {
+                thread::sleep(REWATCH);
+
+                changes = watch();
+
                 continue;
             }
 
-            *Self::write() = fresh;
+            settle(&changes);
         }
     }
 }
@@ -184,6 +211,39 @@ fn join(ssid: &str, password: Option<&str>) {
     manager::activate(&profile, &device);
 }
 
+// networkmanager's changes, watched before the first fetch so none slips past; ends with the bus
+fn watch() -> Receiver<()> {
+    let signals = Bus::system().signals("org.freedesktop.DBus.Properties", "PropertiesChanged");
+
+    let (sender, changes) = mpsc::channel();
+
+    thread::spawn(move || {
+        for signal in signals {
+            if signal.path().starts_with(PATH) && shown(&signal) && sender.send(()).is_err() {
+                return;
+            }
+        }
+    });
+
+    changes
+}
+
+// the arguments are the interface, the changed properties and the invalidated ones
+fn shown(signal: &Signal) -> bool {
+    match signal.arguments().get(1) {
+        Some(Value::Map(changed)) if !changed.is_empty() => {
+            changed.keys().any(|name| !UNSHOWN.contains(&name.as_str()))
+        }
+        _ => true,
+    }
+}
+
+fn settle(changes: &Receiver<()>) {
+    let started = Instant::now();
+
+    while started.elapsed() < SETTLE_AT_MOST && changes.recv_timeout(SETTLE).is_ok() {}
+}
+
 // the ssid comes as raw bytes, and is almost always utf-8
 fn ssid(bytes: &Value) -> String {
     let mut raw = Vec::new();
@@ -230,4 +290,47 @@ fn fetch() -> Network {
     network.strength = access_point.get("Strength").number() as u8;
 
     network
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::shown;
+    use crate::Value;
+    use crate::dbus::Signal;
+
+    fn changed(names: &[&str]) -> Signal {
+        let properties = names
+            .iter()
+            .map(|name| (String::from(*name), Value::Nothing))
+            .collect::<BTreeMap<_, _>>();
+
+        Signal {
+            sender: String::from(":1.4"),
+            path: String::from("/org/freedesktop/NetworkManager/Devices/3"),
+            arguments: vec![
+                Value::Text(String::from(
+                    "org.freedesktop.NetworkManager.Device.Wireless",
+                )),
+                Value::Map(properties),
+                Value::List(Vec::new()),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_change_nothing_shows_is_left_alone() {
+        assert!(!shown(&changed(&["Bitrate"])));
+        assert!(!shown(&changed(&["Bitrate", "LastSeen"])));
+    }
+
+    #[test]
+    fn a_change_to_anything_shown_fetches_again() {
+        assert!(shown(&changed(&["Strength"])));
+        assert!(shown(&changed(&["Bitrate", "State"])));
+
+        // only invalidated properties, which say nothing about what changed
+        assert!(shown(&changed(&[])));
+    }
 }
