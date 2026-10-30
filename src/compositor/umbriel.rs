@@ -24,29 +24,29 @@ fn send(request: &Value) -> Option<UnixStream> {
 }
 
 pub fn focus_workspace(id: i64) {
-    let Some(arg) = focus_action(id) else {
+    let Some(request) = focus_request(id) else {
         return;
     };
 
     // the reply only says whether the action was taken
-    if let Some(stream) = send(&json!({ "cmd": "msg", "arg": arg })) {
+    if let Some(stream) = send(&request) {
         let _ = BufReader::new(stream).read_line(&mut String::new());
     }
 }
 
-// "workspace-switch:2/DP-1": the workspace by its place, on its own monitor
-fn focus_action(id: i64) -> Option<String> {
+// the workspace by its place, on its own monitor
+fn focus_request(id: i64) -> Option<Value> {
     let outputs = OUTPUTS.lock().ok()?;
 
     let output = outputs.get(usize::try_from(id >> 32).ok()?)?;
     let index = id & 0xffff_ffff;
 
-    // a name that could end the action early isn't sent
-    if output.contains(['/', ':', '\n', '\r']) {
-        return None;
-    }
-
-    Some(format!("workspace-switch:{index}/{output}"))
+    Some(json!({
+        "cmd": "action",
+        "action": "workspace-switch",
+        "workspace": index,
+        "output": output,
+    }))
 }
 
 pub fn listen(on_change: impl FnMut(Vec<Workspace>)) {
@@ -186,13 +186,17 @@ mod tests {
         drop(outputs);
 
         assert_eq!(
-            focus_action(list[1].id).as_deref(),
-            Some("workspace-switch:2/DP-1")
+            focus_request(list[1].id),
+            Some(
+                json!({ "cmd": "action", "action": "workspace-switch", "workspace": 2, "output": "DP-1" })
+            )
         );
         assert_eq!(
-            focus_action(list[2].id).as_deref(),
-            Some("workspace-switch:1/DP-2")
+            focus_request(list[2].id),
+            Some(
+                json!({ "cmd": "action", "action": "workspace-switch", "workspace": 1, "output": "DP-2" })
+            )
         );
-        assert_eq!(focus_action(99 << 32), None);
+        assert_eq!(focus_request(99 << 32), None);
     }
 }
