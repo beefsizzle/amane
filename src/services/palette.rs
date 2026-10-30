@@ -4,8 +4,11 @@ mod sample;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, SystemTime};
+
+use inotify::{Inotify, WatchMask, Watches};
 
 use crate::graphics::image;
 use crate::{Color, Service};
@@ -27,58 +30,121 @@ pub struct Palette {
     colors: Vec<Color>,
 }
 
-// polled, so both a new file at the same path and a new path are picked up
+// lets open() watch the folder of a new image, while listen() waits for changes
+static WATCHES: OnceLock<Watches> = OnceLock::new();
+
+// a new file at the same path is picked up, and a new path through open()
 impl Service for Palette {
     fn new() -> Self {
         Self::default()
     }
 
+    // only without inotify, which is otherwise woken by the file itself
     fn interval() -> Duration {
         Duration::from_millis(500)
     }
 
     /*
-     * the image is decoded without holding the service,
-     * so the window keeps drawing while a large wallpaper loads
+     * the folder is watched rather than the file, since a file that is
+     * replaced by a rename takes a watch on itself away with it
      */
     fn listen() {
+        let Ok(mut inotify) = Inotify::init() else {
+            return poll();
+        };
+
+        let _ = WATCHES.set(inotify.watches());
+
+        // opened before the watches existed
+        if let Some(path) = Self::read().path.clone() {
+            watch_folder(&path);
+        }
+
+        let mut buffer = [0; 4096];
+
         loop {
-            thread::sleep(Self::interval());
-
-            let (path, count, modified) = {
-                let palette = Self::read();
-
-                let Some(path) = palette.path.clone() else {
-                    continue;
-                };
-
-                (path, palette.count, palette.modified)
+            let Ok(events) = inotify.read_events_blocking(&mut buffer) else {
+                return poll();
             };
 
-            let now = modified_time(&path);
+            let name = Self::read()
+                .path
+                .as_deref()
+                .and_then(Path::file_name)
+                .map(ToOwned::to_owned);
 
-            if now.is_none() || now == modified {
-                continue;
+            if name.is_some()
+                && events
+                    .into_iter()
+                    .any(|event| event.name == name.as_deref())
+            {
+                reread();
             }
-
-            let colors = quantize(&path, count);
-
-            // a half written file, the next change brings the rest
-            if colors.is_empty() {
-                continue;
-            }
-
-            let mut palette = Self::write();
-
-            // opened again while decoding, the newer path wins
-            if palette.path.as_deref() != Some(path.as_path()) {
-                continue;
-            }
-
-            palette.modified = now;
-            palette.colors = colors;
         }
     }
+}
+
+fn poll() {
+    loop {
+        thread::sleep(Palette::interval());
+
+        reread();
+    }
+}
+
+fn watch_folder(path: &Path) {
+    let Some(watches) = WATCHES.get() else {
+        return;
+    };
+
+    let folder = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+
+    // a written file is closed, a replaced one is moved into place
+    let _ = watches
+        .clone()
+        .add(folder, WatchMask::CLOSE_WRITE | WatchMask::MOVED_TO);
+}
+
+/*
+ * the image is decoded without holding the service,
+ * so the window keeps drawing while a large wallpaper loads
+ */
+fn reread() {
+    let (path, count, modified) = {
+        let palette = Palette::read();
+
+        let Some(path) = palette.path.clone() else {
+            return;
+        };
+
+        (path, palette.count, palette.modified)
+    };
+
+    let now = modified_time(&path);
+
+    if now.is_none() || now == modified {
+        return;
+    }
+
+    let colors = quantize(&path, count);
+
+    // a half written file, the next change brings the rest
+    if colors.is_empty() {
+        return;
+    }
+
+    let mut palette = Palette::write();
+
+    // opened again while decoding, the newer path wins
+    if palette.path.as_deref() != Some(path.as_path()) {
+        return;
+    }
+
+    palette.modified = now;
+    palette.colors = colors;
 }
 
 impl Palette {
@@ -91,6 +157,8 @@ impl Palette {
 
         self.modified = modified_time(&path);
         self.colors = quantize(&path, count);
+
+        watch_folder(&path);
 
         self.path = Some(path);
         self.count = count;
