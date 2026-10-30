@@ -30,7 +30,7 @@ fn view() -> LayerWindow {
 
 - `open(path, count)` reads the image and picks `count` colors from it. It reads the image right away, so the very first frame already has the colors. 16 is enough for a whole shell's theme.
 - `open` changes the Palette, so it's called on `write()`, and every window that reads the Palette redraws. That's the one place it's fine to call `write()` outside an input handler: in `main`, before the shell starts, or in an IPC handler.
-- The Palette checks the file twice a second. When the image changes, or you `open` a new path, the colors are picked again on a background thread, and the windows redraw.
+- The Palette notices when the file is written again or replaced, and for a link, when the file it points to changes. When the image changes, or you `open` a new path, the colors are picked again on a background thread, and the windows redraw.
 
 So a wallpaper script that overwrites the same file re-themes your shell on its own.
 
