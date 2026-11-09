@@ -50,42 +50,19 @@ impl KeyboardHandler for WaylandState {
         _: u32,
         event: KeyEvent,
     ) {
-        let Some(surface) = self.keyboard_focus.clone() else {
-            return;
-        };
-
-        let key = to_key(&event);
-
-        // a focused text input takes the key before the window's on_key sees it
-        if focus::send(key) {
-            self.request_frame_on(&surface);
-
-            return;
-        }
-
-        let Some(window) = self.window(&surface) else {
-            return;
-        };
-
-        let Some(on_key) = &window.on_key else {
-            return;
-        };
-
-        on_key(key);
-
-        // a service the handler changed wakes its own readers, this window redraws for the rest
-        self.request_frame_on(&surface);
+        self.send_key(to_key(&event));
     }
 
-    // only sent to keyboards made with key repeat, which this one is not
+    // for a compositor that repeats keys itself, the timer in seat.rs does it for the others
     fn repeat_key(
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
         _: &WlKeyboard,
         _: u32,
-        _: KeyEvent,
+        event: KeyEvent,
     ) {
+        self.repeat_held_key(&event);
     }
 
     fn release_key(
@@ -108,6 +85,54 @@ impl KeyboardHandler for WaylandState {
         _: RawModifiers,
         _: u32,
     ) {
+    }
+}
+
+impl WaylandState {
+    fn send_key(&mut self, key: Key) {
+        let Some(surface) = self.keyboard_focus.clone() else {
+            return;
+        };
+
+        // a focused text input takes the key before the window's on_key sees it
+        if focus::send(key) {
+            self.request_frame_on(&surface);
+
+            return;
+        }
+
+        let Some(window) = self.window(&surface) else {
+            return;
+        };
+
+        let Some(on_key) = &window.on_key else {
+            return;
+        };
+
+        on_key(key);
+
+        // a service the handler changed wakes its own readers, this window redraws for the rest
+        self.request_frame_on(&surface);
+    }
+
+    pub(super) fn repeat_held_key(&mut self, event: &KeyEvent) {
+        let key = to_key(event);
+
+        if repeats(key, focus::any()) {
+            self.send_key(key);
+        }
+    }
+}
+
+/*
+ * text keeps typing and the arrows keep moving, but enter, escape and a window's
+ * letter shortcuts stay one press each, so holding one can't confirm or close twice
+ */
+fn repeats(key: Key, typing: bool) -> bool {
+    match key {
+        Key::Up | Key::Down | Key::Left | Key::Right => true,
+        Key::Backspace | Key::Space | Key::Character(_) => typing,
+        _ => false,
     }
 }
 
@@ -147,4 +172,46 @@ fn character(event: &KeyEvent) -> Key {
     }
 
     Key::Character(letter)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::repeats;
+    use crate::Key;
+
+    #[test]
+    fn typing_repeats_but_confirming_does_not() {
+        for key in [
+            Key::Character('a'),
+            Key::Space,
+            Key::Backspace,
+            Key::Left,
+            Key::Right,
+        ] {
+            assert!(repeats(key, true), "{key:?}");
+        }
+
+        for key in [Key::Enter, Key::Escape, Key::Tab, Key::Other] {
+            assert!(!repeats(key, true), "{key:?}");
+        }
+    }
+
+    #[test]
+    fn a_window_only_gets_the_arrows_repeated() {
+        for key in [Key::Up, Key::Down, Key::Left, Key::Right] {
+            assert!(repeats(key, false), "{key:?}");
+        }
+
+        for key in [
+            Key::Character('c'),
+            Key::Space,
+            Key::Backspace,
+            Key::Enter,
+            Key::Escape,
+            Key::Home,
+            Key::End,
+        ] {
+            assert!(!repeats(key, false), "{key:?}");
+        }
+    }
 }

@@ -209,6 +209,8 @@ A focused `TextInput` takes keys before the window does, because typing should t
 - `Up`, `Down`, `Tab`, and `Other` skip the input and go to the window's `on_key`. That's how arrow keys can move through a list while you type in a search box.
 - `Escape` takes focus away from the input, and then also goes to the window, which may want to close.
 
+Holding a key repeats it while it does something over and over. With a text input in focus that's typing and the arrow keys. A window's `on_key` only gets repeats of the arrow keys, so a held letter, `Enter` or `Escape` still counts once.
+
 ## Terms
 
 - **Handler:** a function Amane calls when an event happens.

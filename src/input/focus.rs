@@ -23,6 +23,10 @@ pub fn clear() {
     FOCUS.set(None);
 }
 
+pub fn any() -> bool {
+    FOCUS.with_borrow(Option::is_some)
+}
+
 pub fn has(id: &'static str) -> bool {
     FOCUS.with_borrow(|focus| matches!(focus, Some(focus) if focus.id == id))
 }
