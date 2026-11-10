@@ -1,7 +1,7 @@
 use crate::Key;
 
 // what a text input holds: its text, and where the cursor sits in it
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct Field {
     pub text: String,
 

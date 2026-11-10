@@ -126,7 +126,7 @@ impl TextInput {
     }
 
     fn draw_cursor(&self, renderer: &mut Renderer, area: Area) {
-        let field = fields::get(self.id);
+        let field = fields::read(self.id);
 
         let before = self.label(self.shown(&field.before_cursor()), self.color);
         let offset = before.width().resolve(area.width);
@@ -147,7 +147,7 @@ impl Widget for TextInput {
     }
 
     fn draw(&self, renderer: &mut Renderer, area: Area) {
-        let text = fields::get(self.id).text;
+        let text = fields::read(self.id).text;
 
         // the placeholder is the text color at half strength
         let faded = Color::rgba(self.color.r, self.color.g, self.color.b, self.color.a / 2);
