@@ -39,7 +39,7 @@ I came to this after writing a Quickshell config. My volume slider was jaggy bec
 
 `run()` first checks that you set at least one window and panics if you didn't. Then it calls `allocator::limit`, which tunes glibc's allocator so the memory used to decode big images goes back to the system afterwards instead of staying in the process. It sets the default font if you gave one, and hands everything to `WaylandApp::new` in `src/wayland.rs`. A `GpuSession` guard outlives the backend and releases the shared GPU cache after the windows are gone, on normal exit or startup failure. This happens before thread-local teardown, while wgpu's own thread-local state is still available.
 
-`WaylandApp::new` connects to the compositor and binds the protocols Amane needs. Amane uses smithay-client-toolkit (SCTK) for this, so it doesn't have to write the Wayland boilerplate by hand. The compositor, wlr-layer-shell, xdg-shell and shm are required, so a missing one is a panic. Fractional scaling, the viewporter and drag-and-drop are optional, and Amane works without them.
+`WaylandApp::new` connects to the compositor and binds the protocols Amane needs. Amane uses smithay-client-toolkit (SCTK) for this, so it doesn't have to write the Wayland boilerplate by hand. The compositor, wlr-layer-shell, xdg-shell and shm are required, so a missing one is a panic. Fractional scaling, the viewporter, drag-and-drop and idle notifications are optional, and Amane works without them.
 
 Then the windows open. Per-monitor windows wait until the compositor has described each monitor. A layer window runs its view once at 0 by 0 before its surface even exists, because it needs the settings the view asks for (size, anchor, layer and so on) to create the surface. Nothing is drawn yet. Drawing starts when the compositor sends the first configure.
 
@@ -181,6 +181,7 @@ src/
 │   ├── redraw.rs      redraw, request_frame, present
 │   ├── update.rs      sending changed settings and input regions
 │   ├── seat.rs        mice and keyboards being plugged in and out
+│   ├── idle.rs        App::idle's timeouts, through ext-idle-notify
 │   ├── pointer.rs     buttons, scroll, cursor
 │   ├── keyboard.rs    keys
 │   ├── dropped.rs     files dragged in from other programs

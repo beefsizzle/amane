@@ -15,7 +15,7 @@ vello = "0.11"
 wgpu = { version = "30.0", default-features = false, features = ["glsl"] }
 wayland-client = "0.31.15"
 # linux-dmabuf, to ask the compositor which gpu it draws with (see vulkan_drivers.rs)
-wayland-protocols = { version = "0.32", features = ["client"] }
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 # only for client_system, which hands the gpu libwayland's own display pointer
 wayland-backend = { version = "0.3.17", features = ["client_system"] }
 fontconfig = "0.11"

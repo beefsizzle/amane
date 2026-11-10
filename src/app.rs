@@ -2,8 +2,10 @@
 use crate::allocator;
 use crate::graphics::{GpuSession, font};
 use crate::ipc::IpcHandlers;
+use std::time::Duration;
+
 use crate::scale::ScaleFactor;
-use crate::wayland::WaylandApp;
+use crate::wayland::{IdleTimeout, WaylandApp};
 use crate::window::NamedWindow;
 use crate::{LayerWindow, Monitor, Window};
 
@@ -16,6 +18,7 @@ pub struct App {
     normal_windows: Vec<NamedWindow>,
     per_monitor: Vec<fn(&Monitor) -> LayerWindow>,
     lock: Option<fn(&Monitor) -> LayerWindow>,
+    idle: Vec<IdleTimeout>,
 
     handlers: IpcHandlers,
     ipc_disabled: bool,
@@ -72,6 +75,21 @@ impl App {
         self
     }
 
+    /*
+     * runs `idle` once there's been no input for `after`, and `resumed` when input comes back.
+     * a playing video or anything else that inhibits idle holds it off, and each call adds
+     * one more timeout. both run on the event loop, so start a thread for anything slow
+     */
+    pub fn idle(mut self, after: Duration, idle: fn(), resumed: fn()) -> Self {
+        self.idle.push(IdleTimeout {
+            after,
+            idle,
+            resumed,
+        });
+
+        self
+    }
+
     // lets `amane ipc call <name> [arguments...]` run the handler while the shell is running
     pub fn ipc(mut self, name: &str, handler: fn(&[String]) -> String) -> Self {
         self.handlers.insert(name, handler);
@@ -108,6 +126,7 @@ impl App {
             self.normal_windows,
             self.per_monitor,
             self.lock,
+            self.idle,
             if self.ipc_disabled {
                 None
             } else {

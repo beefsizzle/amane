@@ -20,6 +20,7 @@ use amane::*;
 | `.window_per_monitor(view)` | adds a layer window on every monitor, `fn(&Monitor) -> LayerWindow` |
 | `.normal_window("name", view)` | adds a normal app window, `fn() -> Window` |
 | `.lock(view)` | sets the lock screen, `fn(&Monitor) -> LayerWindow` |
+| `.idle(after, idle, resumed)` | runs `fn()`s when there's been no input for a `Duration`, and when it's back ([Idle](idle.md)) |
 | `.ipc("name", handler)` | handles `amane ipc call name`, `fn(&[String]) -> String` |
 | `.without_ipc()` | runs without an IPC socket, alongside another Amane app |
 | `.font("Inter")` | sets the default font family |

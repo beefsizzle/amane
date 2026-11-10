@@ -1,5 +1,6 @@
 mod compositor;
 mod dropped;
+mod idle;
 mod keyboard;
 mod layer;
 mod layer_surface;
@@ -20,6 +21,8 @@ mod wake;
 // a picture window starts decoding its file from the view, see LayerWindow::picture
 pub(crate) use picture::want as want_picture;
 mod windows;
+
+pub(crate) use idle::IdleTimeout;
 
 use smithay_client_toolkit::reexports::protocols::wp::{
     fractional_scale::v1::client::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1,
@@ -45,7 +48,10 @@ use smithay_client_toolkit::{
 use wayland_client::{
     Connection, QueueHandle,
     globals::registry_queue_init,
-    protocol::{wl_keyboard::WlKeyboard, wl_surface::WlSurface},
+    protocol::{wl_keyboard::WlKeyboard, wl_seat::WlSeat, wl_surface::WlSurface},
+};
+use wayland_protocols::ext::idle_notify::v1::client::{
+    ext_idle_notification_v1::ExtIdleNotificationV1, ext_idle_notifier_v1::ExtIdleNotifierV1,
 };
 
 use crate::ipc::IpcHandlers;
@@ -83,6 +89,11 @@ struct WaylandState {
 
     // optional, solid windows fall back to shared memory
     single_pixel: Option<WpSinglePixelBufferManagerV1>,
+
+    // App::idle's timeouts, and one notification for each on every seat
+    idle_notifier: Option<ExtIdleNotifierV1>,
+    idle_timeouts: Vec<IdleTimeout>,
+    idle_notifications: Vec<(WlSeat, ExtIdleNotificationV1)>,
 
     /*
      * the lock screen's view, what asks the compositor for a lock (kept, so
@@ -125,6 +136,7 @@ impl WaylandApp {
         normal_views: Vec<NamedWindow>,
         per_monitor: Vec<fn(&Monitor) -> LayerWindow>,
         lock_view: Option<fn(&Monitor) -> LayerWindow>,
+        idle_timeouts: Vec<IdleTimeout>,
         handlers: Option<IpcHandlers>,
         scale_factor: ScaleFactor,
     ) -> Self {
@@ -147,6 +159,13 @@ impl WaylandApp {
         let fractional_scale = globals.bind(&qh, 1..=1, ()).ok();
         let viewporter = globals.bind(&qh, 1..=1, ()).ok();
         let single_pixel = globals.bind(&qh, 1..=1, ()).ok();
+
+        // only bound when a timeout was asked for
+        let idle_notifier = if idle_timeouts.is_empty() {
+            None
+        } else {
+            globals.bind(&qh, 1..=1, ()).ok()
+        };
 
         let data_device_manager = DataDeviceManagerState::bind(&globals, &qh).ok();
 
@@ -174,6 +193,10 @@ impl WaylandApp {
             fractional_scale,
             viewporter,
             single_pixel,
+
+            idle_notifier,
+            idle_timeouts,
+            idle_notifications: Vec::new(),
 
             lock_view,
             lock_state: None,
@@ -204,6 +227,13 @@ impl WaylandApp {
 
         if lock_view.is_some() {
             state.lock_state = Some(SessionLockState::new(&globals, &state.qh));
+        }
+
+        // seats plugged in later are watched as they come, see seat.rs
+        let seats: Vec<WlSeat> = state.seat.seats().collect();
+
+        for seat in &seats {
+            state.watch_idle(seat);
         }
 
         // a Lock::start before run() has no event loop to wake yet

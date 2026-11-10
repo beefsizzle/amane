@@ -33,6 +33,7 @@
 
 - [Multiple Windows and Monitors](windows.md)
 - [Lock Screen](lock_screen.md)
+- [Idle](idle.md)
 
 # Built-in Services
 
