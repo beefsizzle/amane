@@ -1,7 +1,7 @@
 > [!NOTE]
 > **this is beefsizzle's fork of [MystiaFin/amane](https://github.com/MystiaFin/amane).** <br>
 > each commit on top of upstream's main is one change, kept apart so it can be offered upstream as its own pull request. it's what [daru](https://github.com/beefsizzle/daru) is built on. <br>
-> I have a BS in CS but I'm not fluent in Rust so the code was co-written with Claude, following amane's [LLM rules](CONTRIBUTING.md#llm-rules): I decided what each change should do, and reviewed and tested every one on multiple machines before it went in.
+> I have a BS in CS but I'm not fluent in Rust so the code was co-written with Claude, following amane's [LLM rules](CONTRIBUTING.md#llm-rules): I decided what each change should do, and reviewed and tested every one on an all AMD desktop and an Intel/Nvidia laptop before it went in.
 
 > [!NOTE]
 > **amane is on hiatus until mid-december 2026.** <br>
