@@ -247,6 +247,7 @@ use amane::*;
 | `Bluetooth` | `available`, `powered`, `scanning`, `devices` | `set_powered`, `start_scan`, `stop_scan`, `pair`, `connect`, `disconnect`, `forget` |
 | `Media` | `players`, `active`, `title`, `artist`, `art_url`, `playing`, `position`, `length` | `play_pause`, `next`, `previous` |
 | `Notifications` | `list`, `running` | `click`, `invoke`, `dismiss`, `clear` |
+| `Tray` | `items`, `running`, `menu` | `activate`, `secondary_activate`, `scroll`, `context_menu`, `open_menu`, `open_submenu`, `click_menu`, `close_menu` |
 | `Workspaces` | `list` | `focus` |
 | `Apps` | `list` | `launch` on each `DesktopApp` |
 | `Palette` | `colors`, `dominant`, `accent`, `background`, `foreground`, `on_accent`, `light` | `open` |

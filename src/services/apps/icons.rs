@@ -226,7 +226,7 @@ fn theme_icon_folders(theme: &str, roots: &[PathBuf]) -> Vec<Vec<PathBuf>> {
         .collect()
 }
 
-fn look_up_icon_file_in_folder(icon_name: &str, icon_folder: &Path) -> Option<PathBuf> {
+pub fn look_up_icon_file_in_folder(icon_name: &str, icon_folder: &Path) -> Option<PathBuf> {
     for extension in ["svg", "png"] {
         let icon_file = icon_folder.join(format!("{icon_name}.{extension}"));
 

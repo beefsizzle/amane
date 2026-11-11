@@ -1,7 +1,7 @@
 mod data_dirs;
 mod desktop_app;
 mod exec;
-mod icons;
+pub(super) mod icons;
 mod parse;
 mod walk;
 

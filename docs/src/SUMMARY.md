@@ -43,6 +43,7 @@
 - [Bluetooth](bluetooth.md)
 - [Media Players](media.md)
 - [Notifications](notifications.md)
+- [System Tray](tray.md)
 - [Workspaces](workspaces.md)
 - [Apps](apps.md)
 - [Palette](palette.md)
