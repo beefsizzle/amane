@@ -52,6 +52,7 @@ pub use services::{
 };
 pub use style::{Fill, Image, Mask, Radius, Shadow};
 pub use vulkan_drivers::limit_vulkan_drivers;
+pub use wayland::Idle;
 pub use widgets::{
     Arc, Canvas, Circle, Column, Line, Path, Rectangle, Row, ScrollArea, Shape, Stack, Text,
     TextInput, Widget,

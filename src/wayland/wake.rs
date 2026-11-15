@@ -13,6 +13,8 @@ pub fn insert(handle: &LoopHandle<'static, WaylandState>) {
 
             state.start_lock_if_asked();
 
+            state.follow_idle_hold();
+
             state.open_requested();
 
             state.close_requested();

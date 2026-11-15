@@ -181,7 +181,7 @@ src/
 │   ├── redraw.rs      redraw, request_frame, present
 │   ├── update.rs      sending changed settings and input regions
 │   ├── seat.rs        mice and keyboards being plugged in and out
-│   ├── idle.rs        App::idle's timeouts, through ext-idle-notify
+│   ├── idle.rs        App::idle's timeouts, through ext-idle-notify, and Idle::hold
 │   ├── pointer.rs     buttons, scroll, cursor
 │   ├── keyboard.rs    keys
 │   ├── dropped.rs     files dragged in from other programs

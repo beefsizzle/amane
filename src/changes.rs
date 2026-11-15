@@ -83,7 +83,8 @@ pub fn take_read() -> HashSet<TypeId> {
     READ.take()
 }
 
-fn ping() {
+// wakes the event loop from any thread, which by itself draws nothing again
+pub fn ping() {
     // a write before the loop exists is picked up by the first frame anyway
     let Some(wake) = WAKE.get() else {
         return;

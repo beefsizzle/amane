@@ -29,3 +29,20 @@ While something inhibits idle, like a video that's playing, the compositor holds
 Both functions run on the event loop, so they should be quick. `Lock::start` is. For something slow, like waiting on a command, start a thread.
 
 If you only need one side, pass `|| {}` for the other.
+
+## Holding the timeouts off
+
+Some input never reaches the compositor. A game played with a controller reads it straight from the device, so the session can lock in the middle of a match. Games ask the desktop to stay awake over D-Bus instead, through `org.freedesktop.ScreenSaver` or the desktop portal.
+
+If your shell answers those requests, it can hold every timeout off while one is active:
+
+```rust
+use amane::Idle;
+
+Idle::hold();
+
+// later, once nothing asks anymore
+Idle::release();
+```
+
+After `Idle::release`, the timeouts count again from that moment, so the session still locks five minutes after the game closes. A timeout that already ran when you call `Idle::hold`, like screens that are already off, still gets its `resumed` when input comes back.

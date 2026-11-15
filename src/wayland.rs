@@ -22,7 +22,8 @@ mod wake;
 pub(crate) use picture::want as want_picture;
 mod windows;
 
-pub(crate) use idle::IdleTimeout;
+pub use idle::Idle;
+pub(crate) use idle::{IdleTimeout, IdleWatch};
 
 use smithay_client_toolkit::reexports::protocols::wp::{
     fractional_scale::v1::client::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1,
@@ -50,9 +51,7 @@ use wayland_client::{
     globals::registry_queue_init,
     protocol::{wl_keyboard::WlKeyboard, wl_seat::WlSeat, wl_surface::WlSurface},
 };
-use wayland_protocols::ext::idle_notify::v1::client::{
-    ext_idle_notification_v1::ExtIdleNotificationV1, ext_idle_notifier_v1::ExtIdleNotifierV1,
-};
+use wayland_protocols::ext::idle_notify::v1::client::ext_idle_notifier_v1::ExtIdleNotifierV1;
 
 use crate::ipc::IpcHandlers;
 use crate::scale::ScaleFactor;
@@ -93,7 +92,7 @@ struct WaylandState {
     // App::idle's timeouts, and one notification for each on every seat
     idle_notifier: Option<ExtIdleNotifierV1>,
     idle_timeouts: Vec<IdleTimeout>,
-    idle_notifications: Vec<(WlSeat, ExtIdleNotificationV1)>,
+    idle_watches: Vec<IdleWatch>,
 
     /*
      * the lock screen's view, what asks the compositor for a lock (kept, so
@@ -196,7 +195,7 @@ impl WaylandApp {
 
             idle_notifier,
             idle_timeouts,
-            idle_notifications: Vec::new(),
+            idle_watches: Vec::new(),
 
             lock_view,
             lock_state: None,
