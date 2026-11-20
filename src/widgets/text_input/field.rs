@@ -16,6 +16,7 @@ impl Field {
             Key::Character(letter) => self.insert(letter),
             Key::Space => self.insert(' '),
             Key::Backspace => self.erase(),
+            Key::Delete => self.erase_forward(),
             Key::Left => self.move_to(self.cursor.saturating_sub(1)),
             Key::Right => self.move_to(self.cursor + 1),
             Key::Home => self.move_to(0),
@@ -44,6 +45,19 @@ impl Field {
         }
 
         self.cursor -= 1;
+
+        let at = self.byte_index();
+
+        self.text.remove(at);
+
+        true
+    }
+
+    // removes the letter right of the cursor, which stays where it is
+    fn erase_forward(&mut self) -> bool {
+        if self.cursor == self.length() {
+            return false;
+        }
 
         let at = self.byte_index();
 
@@ -101,5 +115,24 @@ mod tests {
 
         assert_eq!(field.text, "hllo ");
         assert_eq!(field.cursor, 5);
+    }
+
+    #[test]
+    fn delete_takes_the_letter_after_the_cursor() {
+        let mut field = Field::default();
+
+        for letter in "héllo".chars() {
+            field.apply(Key::Character(letter));
+        }
+
+        // nothing after the cursor at the end
+        assert!(!field.apply(Key::Delete));
+
+        field.apply(Key::Home);
+        field.apply(Key::Right);
+
+        assert!(field.apply(Key::Delete));
+        assert_eq!(field.text, "hllo");
+        assert_eq!(field.cursor, 1);
     }
 }

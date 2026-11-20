@@ -115,7 +115,7 @@ Enter doesn't clear the input on its own. Call `set_text` with an empty string i
 
 While an input has focus:
 
-- Letters, `Space`, `Backspace`, `Left`, `Right`, `Home`, and `End` edit the text.
+- Letters, `Space`, `Backspace`, `Delete`, `Left`, `Right`, `Home`, and `End` edit the text.
 - `Enter` calls `on_submit`.
 - `Escape` takes focus away, and then also reaches the window's `on_key`.
 - `Up`, `Down`, and `Tab` skip the input and go straight to the window's `on_key`, so a list under a search box can be moved through with the arrow keys.

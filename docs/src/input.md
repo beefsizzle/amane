@@ -197,7 +197,7 @@ fn key_pressed(key: Key) {
 `Key` is one of:
 
 - `Character(char)`: a key that types something, already shifted, like `Character('A')`
-- `Enter`, `Escape`, `Tab`, `Backspace`, `Space`
+- `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Space`
 - `Up`, `Down`, `Left`, `Right`, `Home`, `End`
 - `Other`: any key Amane has no name for yet
 
@@ -205,7 +205,7 @@ fn key_pressed(key: Key) {
 
 A focused `TextInput` takes keys before the window does, because typing should type:
 
-- Letters, `Space`, `Backspace`, `Enter`, `Left`, `Right`, `Home`, and `End` go to the input only.
+- Letters, `Space`, `Backspace`, `Delete`, `Enter`, `Left`, `Right`, `Home`, and `End` go to the input only.
 - `Up`, `Down`, `Tab`, and `Other` skip the input and go to the window's `on_key`. That's how arrow keys can move through a list while you type in a search box.
 - `Escape` takes focus away from the input, and then also goes to the window, which may want to close.
 
