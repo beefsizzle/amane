@@ -4,12 +4,15 @@ mod exec;
 pub(super) mod icons;
 mod parse;
 mod walk;
+mod watch;
 
 use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
 
 use crate::Service;
+
+use watch::Watch;
 
 pub use desktop_app::DesktopApp;
 
@@ -19,34 +22,55 @@ pub struct Apps {
     list: Vec<DesktopApp>,
 }
 
-// polled, so programs installed while the shell runs show up
+// rescanned when a desktop file changes, so programs installed while the shell runs show up
 impl Service for Apps {
     // empty at first: the scan walks every icon theme, which takes seconds
     fn new() -> Self {
         Self::default()
     }
 
+    // only without inotify, which otherwise wakes the scan itself
     fn interval() -> Duration {
         Duration::from_secs(30)
     }
 
-    // scanned outside the lock, so a view reading the list never waits on the disk
     fn listen() {
+        let mut watch = Watch::new();
+
         loop {
-            let list = scan();
+            let folders: Vec<_> = data_dirs::find()
+                .into_iter()
+                .map(|dir| dir.join("applications"))
+                .collect();
 
-            let mut apps = Self::write();
-
-            if apps.list == list {
-                apps.quiet();
-            } else {
-                apps.list = list;
+            if let Some(watch) = &mut watch {
+                watch.follow(&folders);
             }
 
-            drop(apps);
+            rescan();
 
-            thread::sleep(Self::interval());
+            let woken = watch.as_mut().is_some_and(Watch::wait);
+
+            // inotify couldn't be set up or stopped working, so the list is polled
+            if !woken {
+                watch = None;
+
+                thread::sleep(Self::interval());
+            }
         }
+    }
+}
+
+// scanned outside the lock, so a view reading the list never waits on the disk
+fn rescan() {
+    let list = scan();
+
+    let mut apps = Apps::write();
+
+    if apps.list == list {
+        apps.quiet();
+    } else {
+        apps.list = list;
     }
 }
 
