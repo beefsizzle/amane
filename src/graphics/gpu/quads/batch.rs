@@ -97,6 +97,10 @@ impl Quads {
         );
     }
 
+    pub fn forget_letters(&mut self) {
+        self.atlas.forget();
+    }
+
     pub fn forget(&mut self, picture: usize) {
         self.pictures.remove(&picture);
     }

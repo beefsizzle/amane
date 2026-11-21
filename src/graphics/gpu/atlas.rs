@@ -33,7 +33,10 @@ type Key = (u64, u16, u32);
  * letters queued this frame still read their pixels
  */
 pub struct Atlas {
-    texture: Texture,
+    device: Device,
+
+    // made with the first letter, and given back with the window's other textures
+    texture: Option<Texture>,
 
     letters: HashMap<Key, Option<Letter>>,
 
@@ -48,23 +51,9 @@ pub struct Atlas {
 
 impl Atlas {
     pub fn new(device: &Device) -> Self {
-        let texture = device.create_texture(&TextureDescriptor {
-            label: None,
-            size: Extent3d {
-                width: SIZE,
-                height: SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::R8Unorm,
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-
         Self {
-            texture,
+            device: device.clone(),
+            texture: None,
             letters: HashMap::new(),
             row_top: 0,
             row_x: 0,
@@ -73,8 +62,20 @@ impl Atlas {
         }
     }
 
-    pub fn texture(&self) -> &Texture {
-        &self.texture
+    pub fn texture(&mut self) -> &Texture {
+        self.texture.get_or_insert_with(|| make(&self.device))
+    }
+
+    // a hidden window's letters go with its texture, and are drawn again when it shows
+    pub fn forget(&mut self) {
+        self.texture = None;
+        self.letters.clear();
+
+        self.row_top = 0;
+        self.row_x = 0;
+        self.row_height = 0;
+
+        self.full = false;
     }
 
     // the last frame's draws were submitted, so nothing reads the old pixels anymore
@@ -126,7 +127,7 @@ impl Atlas {
         let (x, y) = self.place(width, height)?;
 
         let target = TexelCopyTextureInfo {
-            texture: &self.texture,
+            texture: self.texture(),
             mip_level: 0,
             origin: Origin3d { x, y, z: 0 },
             aspect: TextureAspect::All,
@@ -181,4 +182,21 @@ impl Atlas {
 
         Some(spot)
     }
+}
+
+fn make(device: &Device) -> Texture {
+    device.create_texture(&TextureDescriptor {
+        label: None,
+        size: Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::R8Unorm,
+        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+        view_formats: &[],
+    })
 }

@@ -28,6 +28,8 @@ impl Gpu {
 
     // the textures and gpu copies of images, all but the swapchain
     fn let_go(&mut self, forget: bool) {
+        self.quads.forget_letters();
+
         self.spare.clear();
         self.painted.clear();
 
