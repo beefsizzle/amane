@@ -172,6 +172,11 @@ impl Dispatch<ExtIdleNotificationV1, IdleTimeout> for WaylandState {
                 (timeout.idle)();
             }
             ext_idle_notification_v1::Event::Resumed => {
+                // its idle was skipped for a hold, so there is nothing to resume
+                if !state.idle_watches[place].idled {
+                    return;
+                }
+
                 state.idle_watches[place].idled = false;
 
                 (timeout.resumed)();
