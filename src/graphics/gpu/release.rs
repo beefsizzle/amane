@@ -9,6 +9,25 @@ impl Gpu {
             return;
         }
 
+        self.let_go(forget);
+
+        // a swapchain can't be dropped on its own, but a 1x1 one takes the place of the big one
+        let mut tiny = self.config.clone();
+
+        tiny.width = 1;
+        tiny.height = 1;
+
+        if let Some(surface) = &self.surface {
+            surface.configure(&self.device, &tiny);
+        }
+
+        // so the next frame configures the real size again
+        self.config.width = 0;
+        self.config.height = 0;
+    }
+
+    // the textures and gpu copies of images, all but the swapchain
+    fn let_go(&mut self, forget: bool) {
         self.spare.clear();
         self.painted.clear();
 
@@ -25,20 +44,6 @@ impl Gpu {
 
             self.drawn.clear();
         }
-
-        // a swapchain can't be dropped on its own, but a 1x1 one takes the place of the big one
-        let mut tiny = self.config.clone();
-
-        tiny.width = 1;
-        tiny.height = 1;
-
-        if let Some(surface) = &self.surface {
-            surface.configure(&self.device, &tiny);
-        }
-
-        // so the next frame configures the real size again
-        self.config.width = 0;
-        self.config.height = 0;
     }
 }
 
@@ -48,7 +53,10 @@ impl Gpu {
      * buffer attached needs an explicit sync point, which shared memory doesn't have. call it before attaching
      */
     pub fn hand_over(&mut self) {
-        self.release(true);
+        // the surface takes its swapchain with it, so there's no 1x1 one to make first
+        if self.config.width != 0 {
+            self.let_go(true);
+        }
 
         self.surface = None;
 
