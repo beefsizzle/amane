@@ -395,10 +395,19 @@ fn verified(signal: &Signal) {
             Lock::fingerprint_changed(round, Fingerprint::NoMatch);
 
             thread::spawn(move || {
-                let _ = call(&device, DEVICE, "VerifyStop");
+                let listening = {
+                    let _working = lock(&WORKING);
 
-                if current(round) {
-                    let _ = call_with(&device, DEVICE, "VerifyStart", "any");
+                    let _ = call(&device, DEVICE, "VerifyStop");
+
+                    !current(round) || call_with(&device, DEVICE, "VerifyStart", "any").is_ok()
+                };
+
+                // the reader didn't start again, so it's claimed again rather than shown as listening
+                if !listening {
+                    restart();
+
+                    return;
                 }
 
                 settle(round, Fingerprint::NoMatch);
