@@ -6,7 +6,7 @@ use crate::{Argument, Bus, Service, Tray, Value};
 
 const INTERFACE: &str = "com.canonical.dbusmenu";
 
-// counts the menus asked for and closed, so an answer that comes late is dropped
+// counts the menus and submenus asked for and closed, so an answer that comes late is dropped
 static REQUEST: AtomicU64 = AtomicU64::new(0);
 
 // the menu of one tray item, as the program described it when it was opened
@@ -131,7 +131,7 @@ pub fn open(id: u32) {
 }
 
 pub fn open_submenu(entry: i32) {
-    let request = REQUEST.load(Ordering::SeqCst);
+    let request = REQUEST.fetch_add(1, Ordering::SeqCst) + 1;
 
     let Some((owner, path)) = address() else {
         return;
