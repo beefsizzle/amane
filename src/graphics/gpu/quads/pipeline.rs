@@ -89,6 +89,7 @@ impl Quads {
             atlas: Atlas::new(device),
             pictures: HashMap::new(),
             blank,
+            empty,
             waiting: Vec::new(),
             runs: Vec::new(),
         }

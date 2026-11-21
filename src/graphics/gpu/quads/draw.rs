@@ -66,7 +66,8 @@ impl Quads {
             usage: BufferUsages::UNIFORM,
         });
 
-        let atlas = texture::view(self.atlas.texture());
+        // a window that draws no text never makes an atlas
+        let atlas = texture::view(self.atlas.made().unwrap_or(&self.empty));
 
         let inputs = device.create_bind_group(&BindGroupDescriptor {
             label: None,

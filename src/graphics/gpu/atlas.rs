@@ -62,8 +62,13 @@ impl Atlas {
         }
     }
 
-    pub fn texture(&mut self) -> &Texture {
+    fn texture(&mut self) -> &Texture {
         self.texture.get_or_insert_with(|| make(&self.device))
+    }
+
+    // none until the first letter is drawn
+    pub fn made(&self) -> Option<&Texture> {
+        self.texture.as_ref()
     }
 
     // a hidden window's letters go with its texture, and are drawn again when it shows

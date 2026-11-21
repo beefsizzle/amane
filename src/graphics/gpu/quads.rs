@@ -5,7 +5,7 @@ mod pipeline;
 
 use std::collections::HashMap;
 
-use vello::wgpu::{BindGroup, BindGroupLayout, RenderPipeline, Sampler};
+use vello::wgpu::{BindGroup, BindGroupLayout, RenderPipeline, Sampler, Texture};
 
 use super::atlas::Atlas;
 
@@ -48,6 +48,9 @@ pub struct Quads {
 
     // what quads that read no image bind in the image's place
     blank: BindGroup,
+
+    // one empty pixel, bound in the atlas's place until a letter is drawn
+    empty: Texture,
 
     // every quad's numbers one after another, as quads.wgsl reads them
     waiting: Vec<f32>,
