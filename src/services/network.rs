@@ -97,7 +97,10 @@ impl Service for Network {
                 continue;
             }
 
-            settle(&changes);
+            // a recheck that timed out has no burst to wait out
+            if next.is_ok() {
+                settle(&changes);
+            }
         }
     }
 }
