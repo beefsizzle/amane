@@ -84,9 +84,14 @@ fn open(instance: &Instance, surface: &Surface) -> Shared {
         info.name, info.backend, info.device_type
     );
 
-    // shells keep their textures alive, so favor smaller allocation blocks over spare capacity
+    /*
+     * a shell's textures are few and small, so memory is taken in the smallest blocks the allocator
+     * makes. MemoryUsage starts at 8 MiB and doubles, and held twice what was in use
+     */
     let descriptor = DeviceDescriptor {
-        memory_hints: MemoryHints::MemoryUsage,
+        memory_hints: MemoryHints::Manual {
+            suballocated_device_memory_block_size: 4 << 20..4 << 20,
+        },
         ..DeviceDescriptor::default()
     };
 
