@@ -262,7 +262,10 @@ fn answer_properties(calls: impl Iterator<Item = Method>) {
 
                 match property(name) {
                     Some(value) => method.reply(&[Argument::Variant(Box::new(value))]),
-                    None => method.reply(&[]),
+                    None => method.reply_error(
+                        "org.freedesktop.DBus.Error.UnknownProperty",
+                        "the watcher has no such property",
+                    ),
                 }
             }
 
@@ -278,7 +281,13 @@ fn answer_properties(calls: impl Iterator<Item = Method>) {
                 method.reply(&[Argument::Map(properties)]);
             }
 
-            _ => method.reply(&[]),
+            // a reply must carry what the method returns, or an error
+            "Set" => method.reply_error(
+                "org.freedesktop.DBus.Error.PropertyReadOnly",
+                "the watcher's properties can't be set",
+            ),
+
+            _ => method.reply_error("org.freedesktop.DBus.Error.UnknownMethod", "no such method"),
         }
     }
 }
