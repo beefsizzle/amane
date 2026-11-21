@@ -100,10 +100,17 @@ fn vulkan_names(kernel: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-// the kernel driver of a device number, packed as glibc's makedev does
+// a device number's major and minor, unpacked as glibc's major() and minor() do
+fn split(device: u64) -> (u64, u64) {
+    let major = ((device >> 8) & 0xfff) | ((device >> 32) & 0xffff_f000);
+    let minor = (device & 0xff) | ((device >> 12) & 0xffff_ff00);
+
+    (major, minor)
+}
+
+// the kernel driver of a device number
 fn kernel_driver(device: u64) -> Option<String> {
-    let major = ((device >> 8) & 0xfff) | ((device >> 32) & !0xfff);
-    let minor = (device & 0xff) | ((device >> 12) & !0xff);
+    let (major, minor) = split(device);
 
     let driver = std::fs::read_link(format!("/sys/dev/char/{major}:{minor}/device/driver")).ok()?;
 
@@ -237,7 +244,7 @@ mod tests {
     use std::ffi::OsStr;
     use std::process::Command;
 
-    use super::{MARKER, filter, leave_out};
+    use super::{MARKER, filter, leave_out, split};
 
     fn manifests(names: &[&str]) -> Vec<String> {
         names.iter().map(|name| (*name).to_string()).collect()
@@ -326,5 +333,20 @@ mod tests {
             ),
             None
         );
+    }
+
+    // glibc's makedev, the other way round
+    fn makedev(major: u64, minor: u64) -> u64 {
+        ((major & 0xfff) << 8) | ((major & !0xfff) << 32) | (minor & 0xff) | ((minor & !0xff) << 12)
+    }
+
+    #[test]
+    fn a_device_number_splits_into_its_major_and_minor() {
+        // a gpu's render node
+        assert_eq!(split(makedev(226, 128)), (226, 128));
+
+        // the high bits of the major stay out of the minor
+        assert_eq!(split(makedev(0xfffff, 0xffffff)), (0xfffff, 0xffffff));
+        assert_eq!(split(makedev(0x12345, 0x6789ab)), (0x12345, 0x6789ab));
     }
 }
