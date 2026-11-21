@@ -111,22 +111,7 @@ fn file(path: &str) -> &'static [u8] {
  * old one; a file rewritten in place instead (cp over it) changes under the mapping, and a shorter one faults
  */
 fn map(path: &str) -> Option<&'static [u8]> {
-    use std::ffi::{c_int, c_void};
     use std::os::fd::AsRawFd;
-
-    const PROT_READ: c_int = 1;
-    const MAP_PRIVATE: c_int = 2;
-
-    unsafe extern "C" {
-        fn mmap(
-            address: *mut c_void,
-            length: usize,
-            protection: c_int,
-            flags: c_int,
-            fd: c_int,
-            offset: i64,
-        ) -> *mut c_void;
-    }
 
     let file = std::fs::File::open(path).ok()?;
 
@@ -135,18 +120,17 @@ fn map(path: &str) -> Option<&'static [u8]> {
         .filter(|length| *length > 0)?;
 
     let address = unsafe {
-        mmap(
+        libc::mmap(
             std::ptr::null_mut(),
             length,
-            PROT_READ,
-            MAP_PRIVATE,
+            libc::PROT_READ,
+            libc::MAP_PRIVATE,
             file.as_raw_fd(),
             0,
         )
     };
 
-    // MAP_FAILED
-    if address as isize == -1 {
+    if address == libc::MAP_FAILED {
         return None;
     }
 

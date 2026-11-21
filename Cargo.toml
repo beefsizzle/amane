@@ -31,6 +31,8 @@ blocking = "=1.6.2"
 libpulse-binding = "2.30"
 # turns svg icons into pixels once, so they draw like any other image
 resvg = { version = "0.48.1", default-features = false }
+# mmap for font files, with the offset and flags right on every target
+libc = "0.2.190"
 
 [dev-dependencies]
 chrono = "0.4"

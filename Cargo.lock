@@ -22,6 +22,7 @@ dependencies = [
  "chrono",
  "fontconfig",
  "inotify",
+ "libc",
  "libpulse-binding",
  "png",
  "resvg",
